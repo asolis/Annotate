@@ -38,6 +38,7 @@
 
 #include "viva.h"
 #include <iostream>
+#include <sstream>
 #include <fstream>
 
 using namespace viva;
@@ -119,6 +120,7 @@ private:
     int thickness;
     int mode;
     float ratio;
+    bool showHelp;
 
     float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
     {
@@ -136,6 +138,49 @@ private:
     {
         Point2f tmp = e - s;
         return Point2f( -tmp.y, tmp.x);
+    }
+
+    void displayHelp(Mat &image)
+    {
+        std::stringstream ss;
+        ss <<  " MODE : ";
+
+        if (mode == AXIS_RECT)
+            ss << "Axis Align Rectangle ";
+        else if (mode == ROTA_RECT)
+            ss << "Rotated Rectangle ";
+        else
+            ss << "Polygon ";
+
+        if (ratio > 0 && mode != POLY)
+            ss << "(ratio=" << ratio << ")";
+
+        putText(image, ss.str(), Point(20,20), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
+        ss.str("");
+        ss <<  " (h) : Toggle this help ";
+        putText(image, ss.str(), Point(20,40), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
+        ss.str("");
+        ss <<  " (n) : Next frame";
+        putText(image, ss.str(), Point(20,60), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
+        ss.str("");
+        ss <<  " (b) : Remove last point";
+        putText(image, ss.str(), Point(20,80), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
+        ss.str("");
+        ss <<  " (c) : Clear all points";
+        putText(image, ss.str(), Point(20,100), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
+        ss.str("");
+        ss <<  " (SPACE) : Pause/play video";
+        putText(image, ss.str(), Point(20,120), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
+        ss.str("");
+        ss <<  " (ESC) : Exit Annotate";
+        putText(image, ss.str(), Point(20,140), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+
     }
 
 public:
@@ -162,6 +207,7 @@ public:
                       thickness(2),
                       mode(method),
                       ratio(ratioYX),
+                      showHelp(true),
                       annotations()
     {}
 
@@ -178,6 +224,11 @@ public:
 
         int i;
 
+        if (showHelp)
+        {
+            displayHelp(output);
+        }
+
         if (mode == POLY)
         {
             for (i = 0; i < ((int)annotations[currentFrameN].size() - 1); i++)
@@ -190,7 +241,7 @@ public:
                 line(output, annotations[currentFrameN][i], mousePos,
                      Color::blue, thickness, CV_AA);
                 line(output, mousePos, annotations[currentFrameN][0],
-                     Color::green, thickness, CV_AA);
+                     Color::red, thickness - 1 , CV_AA);
             }
         }
         if (mode == ROTA_RECT)
@@ -233,20 +284,18 @@ public:
                      Color::red, thickness, CV_AA);
 
                 line(output, p1, p4,
-                     Color::blue, thickness, CV_AA);
+                     Color::blue, thickness - 1, CV_AA);
 
                 line(output, p2, p3,
-                     Color::blue, thickness, CV_AA);
+                     Color::blue, thickness - 1, CV_AA);
 
                 line(output, p3, p4,
-                     Color::blue, thickness, CV_AA);
+                     Color::blue, thickness - 1, CV_AA);
 
-                circle(output, p3, 2, Color::green);
+                circle(output, p3, thickness, Color::green);
 
                 if (ratio > 0)
-                {
-                    circle(output,  p1, 2, Color::yellow);
-                }
+                    circle(output,  p1, thickness, Color::yellow);
 
             }
             else
@@ -295,7 +344,7 @@ public:
                           Color::blue,
                           thickness,
                           CV_AA);
-                circle(output, p, 2, Color::green);
+                circle(output, p, thickness - 1, Color::green);
             }
         }
     };
@@ -353,6 +402,11 @@ public:
             annotations[currentFrameN].push_back(p3);
             annotations[currentFrameN].push_back(p4);
         }
+        else if (mode == ROTA_RECT && annotations[currentFrameN].size() == 1)
+        {
+            annotations[currentFrameN].push_back(Point2f(x,y));
+            swap(annotations[currentFrameN][0], annotations[currentFrameN][1]);
+        }
         else
         {
             annotations[currentFrameN].push_back(Point2f(x,y));
@@ -389,6 +443,9 @@ public:
         }
         if (key == 'c' || key == 'C')
             annotations[currentFrameN].clear();
+
+        if (key == 'h' || key == 'H')
+            showHelp = !showHelp;
     };
 
 
@@ -400,31 +457,36 @@ public:
         {
             if (mode == AXIS_RECT)
             {
-                Rect area = boundingRect(annotations[i]);
-                area.width -= 1;
-                area.height -= 1;
-                Point2f tl = area.tl();
-                Point2f tr = area.tl() + Point(area.width, 0);
-                Point2f br = area.br();
-                Point2f bl = area.tl() + Point(0, area.height);
+                if (annotations[i].size() > 0)
+                {
+                    Rect area = boundingRect(annotations[i]);
+                    area.width -= 1;
+                    area.height -= 1;
+                    Point2f tl = area.tl();
+                    Point2f tr = area.tl() + Point(area.width, 0);
+                    Point2f br = area.br();
+                    Point2f bl = area.tl() + Point(0, area.height);
 
-                file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
-                     << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
-                     << br.x * scaleX  << ", " << br.y * scaleY  << ", "
-                     << bl.x * scaleX  << ", " << bl.y * scaleY ;
+                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
+                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
+                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
+                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
+                }
             }
             else if (mode == ROTA_RECT)
             {
+                if (annotations[i].size() > 0)
+                {
+                    Point2f tl = annotations[i][0];
+                    Point2f tr = annotations[i][1];
+                    Point2f br = annotations[i][2];
+                    Point2f bl = annotations[i][3];
 
-                Point2f tl = annotations[i][0];
-                Point2f tr = annotations[i][1];
-                Point2f br = annotations[i][2];
-                Point2f bl = annotations[i][3];
-
-                file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
-                << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
-                << br.x * scaleX  << ", " << br.y * scaleY  << ", "
-                << bl.x * scaleX  << ", " << bl.y * scaleY ;
+                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
+                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
+                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
+                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
+                }
 
             }
             else if (mode == POLY)
