@@ -48,16 +48,21 @@ void ProcessInput::operator()()
     {
         Mat frame;
         auto start_time = chrono::high_resolution_clock::now();
+        
         bool hasFrame = _input->getFrame(frame);
+
         auto end_time = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count();
         _channel->setFrequency((float)(1000.0/double(duration)));
         
         if (!hasFrame || frame.empty())
+        {
             _channel->close();
+        }
         else
         {
             _channel->addData(frame);
+
         }
         
     }
@@ -129,7 +134,6 @@ void Processor::run()
         namedWindow(_outputWindowName, FLAGS);
     if (_mListener && _process)
         cv::setMouseCallback(_outputWindowName, Processor::mouseCallback, _process);
-   
     
     if (!_input && (!_process || !_functor))
         return;
@@ -138,26 +142,27 @@ void Processor::run()
     std::thread  _inputThread(ProcessInput(_input, _input_channel));
     thread_guard gi(_inputThread);
     
-    Ptr<BufferedImageChannel> _output_channel = new BufferedImageChannel(_outputBufferSize);
+    Ptr<BufferedImageChannel> _output_channel = new BufferedImageChannel(_inputBufferSize);
     std::thread  _outputThread(ProcessOutput(_output, _output_channel));
     thread_guard go(_outputThread);
     
     
-    size_t frameN = 0;
+    long frameN = -1;
     Mat freezeFrame;
     bool freezed = false;
-    while (_input_channel->isOpen())
+    bool running = true;
+    int key = Keys::NONE;
+    while (running && ( _input_channel->isOpen() || !_input_channel->empty()))
     {
-        
         bool hasFrame = true;
-        
+
+
         Mat frame, frameOut;
-        
-      
-        
-        if (!freezed)
+        if (!freezed || key == Keys::n)
         {
             hasFrame = _input_channel->getData(frame);
+            freezeFrame = frame;
+            frameN++;
         }
         else
         {
@@ -175,7 +180,7 @@ void Processor::run()
             if (_showInput && !frame.empty())
                 cv::imshow(_inputWindowName, frame);
             auto start_time = chrono::high_resolution_clock::now();
-            
+
             if (_functor)
                 _functor(frameN, frame, frameOut);
             else if (_process)
@@ -195,11 +200,22 @@ void Processor::run()
             if (_output)
                 _output_channel->addData(frameOut);
             
-            int key = waitKey(1);
+            key = Keys::NONE;
+
+            try
+            {
+                key = waitKey(1);
+            }
+            catch (...)
+            {
+                //...
+            }
+
             if (key == Keys::ESC)
             {
                 _input_channel->close();
                 _output_channel->close();
+                running = false;
             }
             if (key == Keys::SPACE || _pause)
             {
@@ -209,9 +225,7 @@ void Processor::run()
             }
             if (_kListener && _process && key != Keys::NONE)
                 _process->keyboardInput(key);
-            
-            if (!freezed)
-                frameN++;
+
         }
         
     }
@@ -258,8 +272,7 @@ void BatchProcessor::run()
         namedWindow(_outputWindowName, FLAGS);
     if (_mListener && _batch_process)
         cv::setMouseCallback(_outputWindowName, BatchProcessor::mouseCallback, _batch_process);
-    
-    
+
     if (!_input && (!_batch_process || !_batch_functor))
         return;
     
@@ -277,6 +290,9 @@ void BatchProcessor::run()
     
     vector<Mat> freezeFrames;
     bool freezed = false;
+
+    int key = Keys::NONE;
+
     while (_input_channel->isOpen())
     {
         
@@ -303,7 +319,6 @@ void BatchProcessor::run()
             frames = freezeFrames;
         }
         
-
         
         if (!hasFrames)
         {
@@ -335,10 +350,18 @@ void BatchProcessor::run()
                 cv::imshow(_outputWindowName, frameOut);
             if (_output)
                 _output_channel->addData(frameOut);
-            
-            
-            
-            int key = waitKey(1);
+
+            key = Keys::NONE;
+
+            try
+            {
+                key = waitKey(1);
+            }
+            catch (...)
+            {
+                //...
+            }
+
             if (key == Keys::ESC)
             {
                 _input_channel->close();

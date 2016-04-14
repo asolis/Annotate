@@ -32,14 +32,60 @@
  **************************************************************************************************
  **************************************************************************************************/
 
-#include "viva.h"
+#include "aprocess.h"
 
 using namespace viva;
 
+
 int main(int argc, const char * argv[])
 {
+
+    const String keys =
+        "{help h            |           | print this message}"
+        "{@sequence         |           | url, file, folder, sequence}"
+        "{m method          |p          | choices = p | r | a  (i.e., poly, rotated rect, axis aligned rec}"
+        "{r ratio           |-1         | ratio height/width}"
+        "{o output          |           | filename for annnotation results}"
+    ;
+
+    CommandLineParser parser(argc, argv, keys);
+
+    if (parser.has("h"))
+        parser.printMessage();
+
+    string sequence = parser.get<string>(0);
+    string mname    = parser.get<string>("m");
+
+    Ptr<Input> input = InputFactory::create(sequence, Size(-1, 720));
+
+
+    int method = AnnotateProcess::POLY;
+    if (mname == "a")
+        method = AnnotateProcess::AXIS_RECT;
+    else if (mname == "r")
+        method = AnnotateProcess::ROTA_RECT;
+
+    Ptr<AnnotateProcess> process = new AnnotateProcess(parser.get<float>("r"), method);
+
     Processor processor;
+    processor.setInput(input);
+    Ptr<ProcessFrame> proc = process;
+    processor.setProcess(proc);
+    processor.startPaused();
+    processor.listenToMouseEvents();
+    processor.listenToKeyboardEvents();
     processor.run();
-    
+
+    if (parser.has("o"))
+    {
+        Size org = input->getOrgSize();
+        Size cur = Size(input->getWidth(), input->getHeight());
+        
+        string annotations = parser.get<string>("o");
+        process->writeAnnotations(annotations,
+                                  (float)org.width/(float)cur.width,
+                                  (float)org.height/(float)cur.height);
+    }
+
     return 0;
 }
