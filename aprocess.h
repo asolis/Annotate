@@ -143,7 +143,7 @@ private:
     void displayHelp(Mat &image)
     {
         std::stringstream ss;
-        ss <<  " MODE : ";
+        ss <<  " (m) : ";
 
         if (mode == AXIS_RECT)
             ss << "Axis Align Rectangle ";
@@ -155,31 +155,30 @@ private:
         if (ratio > 0 && mode != POLY)
             ss << "(ratio=" << ratio << ")";
 
-        putText(image, ss.str(), Point(20,20), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+        vector<string> help;
+        help.push_back(ss.str());
+        help.push_back(" (-) : Reduce ratio 0.1");
+        help.push_back(" (+) : Increase ratio 0.1");
+        help.push_back(" (h) : Toggle this help ");
+        help.push_back(" (n) : Next frame");
+        help.push_back(" (b) : Remove last point");
+        help.push_back(" (c) : Clear all points");
+        help.push_back(" (SPACE) : Pause/play video");
+        help.push_back(" (ESC) : Exit Annotate");
 
-        ss.str("");
-        ss <<  " (h) : Toggle this help ";
-        putText(image, ss.str(), Point(20,40), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
 
-        ss.str("");
-        ss <<  " (n) : Next frame";
-        putText(image, ss.str(), Point(20,60), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+        Rect region(10,10, help.size() * 20 + 10, help.size() * 20 + 10);
+        region &= Rect(0,0, image.cols, image.rows);
+        GaussianBlur(image(region),
+                     image(region),
+                     Size(0,0), 5);
 
-        ss.str("");
-        ss <<  " (b) : Remove last point";
-        putText(image, ss.str(), Point(20,80), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
 
-        ss.str("");
-        ss <<  " (c) : Clear all points";
-        putText(image, ss.str(), Point(20,100), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
-
-        ss.str("");
-        ss <<  " (SPACE) : Pause/play video";
-        putText(image, ss.str(), Point(20,120), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
-
-        ss.str("");
-        ss <<  " (ESC) : Exit Annotate";
-        putText(image, ss.str(), Point(20,140), FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+        for (size_t i = 0, h = 20; i < help.size(); i++, h+= 20)
+        {
+            putText(image, help[i], Point(20,h),
+                    FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+        }
 
     }
 
@@ -236,7 +235,7 @@ public:
                 line(output, annotations[currentFrameN][i], annotations[currentFrameN][i + 1],
                      Color::red, thickness, CV_AA );
             }
-            if (annotations[currentFrameN].size() > 1)
+            if (annotations[currentFrameN].size() > 0)
             {
                 line(output, annotations[currentFrameN][i], mousePos,
                      Color::blue, thickness, CV_AA);
@@ -446,6 +445,20 @@ public:
 
         if (key == 'h' || key == 'H')
             showHelp = !showHelp;
+
+        if (key == 'm' || key == 'M')
+        {
+            annotations[currentFrameN].clear();
+            mode = (++mode)%3;
+        }
+        if (key == '-')
+        {
+            ratio = max(ratio - .1f , 0.f);
+        }
+        if (key == '+')
+        {
+            ratio += .1;
+        }
     };
 
 
