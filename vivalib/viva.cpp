@@ -142,7 +142,7 @@ void Processor::run()
     std::thread  _inputThread(ProcessInput(_input, _input_channel));
     thread_guard gi(_inputThread);
     
-    Ptr<BufferedImageChannel> _output_channel = new BufferedImageChannel(_inputBufferSize);
+    Ptr<BufferedImageChannel> _output_channel = new BufferedImageChannel(_outputBufferSize);
     std::thread  _outputThread(ProcessOutput(_output, _output_channel));
     thread_guard go(_outputThread);
     

@@ -243,6 +243,7 @@ public:
                      Color::red, thickness - 1 , CV_AA);
             }
         }
+        
         if (mode == ROTA_RECT)
         {
             int pts = annotations[currentFrameN].size();
