@@ -43,8 +43,8 @@ int main(int argc, const char * argv[])
     const String keys =
         "{help h            |           | print this message}"
         "{@sequence         |           | url, file, folder, sequence}"
-        "{m method          |p          | choices = p | r | a  (i.e., poly, rotated rect, axis aligned rec}"
-        "{r ratio           |-1         | ratio height/width}"
+        "{m method          |p          | choices = p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
+        "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
         "{o output          |           | filename for annnotation results}"
     ;
 

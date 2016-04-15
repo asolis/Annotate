@@ -439,6 +439,11 @@ public:
             {
                 annotations[currentFrameN].pop_back();
             }
+            else if (mode == ROTA_RECT && annotations[currentFrameN].size() == 2)
+            {
+                swap(annotations[currentFrameN][0], annotations[currentFrameN][1]);
+            }
+
             annotations[currentFrameN].pop_back();
         }
         if (key == 'c' || key == 'C')
