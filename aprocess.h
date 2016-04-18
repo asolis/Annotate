@@ -115,7 +115,7 @@ class AnnotateProcess : public ProcessFrame
 {
 private:
 
-    size_t currentFrameN;
+    long currentFrameN;
     Point2f mousePos;
     int thickness;
     int mode;
@@ -138,6 +138,19 @@ private:
     {
         Point2f tmp = e - s;
         return Point2f( -tmp.y, tmp.x);
+    }
+
+    void displayListPoints(Mat &image, const vector<Point2f> &pts, bool close = true)
+    {
+        int i = 0;
+        for ( i = 0; i < ((int)pts.size() - 1); i++)
+        {
+            line(image, pts[i], pts[i + 1],
+                 Color::red, thickness, CV_AA );
+        }
+        if (close && pts.size() > 0 )//&& mode != POLY)
+            line(image, pts[i], pts[0],
+                 Color::red, thickness, CV_AA );
     }
 
     void displayHelp(Mat &image)
@@ -189,7 +202,8 @@ public:
         POLY
     };
 
-    vector<vector<Point2f>> annotations;
+    vector<vector<vector<Point2f>>> annotations;
+    vector<Point2f> drawing;
 
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
@@ -207,66 +221,75 @@ public:
                       mode(method),
                       ratio(ratioYX),
                       showHelp(true),
-                      annotations()
+                      annotations(),
+                      drawing()
     {}
+
+
 
     virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
     {
         if (currentFrameN != frameN)
         {
-            annotations.push_back(vector<Point2f>());
+            vector<vector<Point2f>> tmp;
+            tmp.push_back(vector<Point2f>());
+            annotations.push_back(tmp);
             currentFrameN = frameN;
         }
 
 
         frame.copyTo(output);
 
-        int i;
-
         if (showHelp)
-        {
             displayHelp(output);
+
+        for (int i = 0; i < annotations[currentFrameN].size(); i++)
+        {
+            if ( i == annotations[currentFrameN].size() - 1)
+                displayListPoints(output, annotations[currentFrameN][i], false);
+            else
+                displayListPoints(output, annotations[currentFrameN][i], true);
+
         }
+
+
+        int lastElement  = annotations[currentFrameN].size() - 1;
+
 
         if (mode == POLY)
         {
-            for (i = 0; i < ((int)annotations[currentFrameN].size() - 1); i++)
+            if (annotations[currentFrameN][lastElement].size() > 0)
             {
-                line(output, annotations[currentFrameN][i], annotations[currentFrameN][i + 1],
-                     Color::red, thickness, CV_AA );
-            }
-            if (annotations[currentFrameN].size() > 0)
-            {
-                line(output, annotations[currentFrameN][i], mousePos,
+                line(output, annotations[currentFrameN][lastElement].back(), mousePos,
                      Color::blue, thickness, CV_AA);
-                line(output, mousePos, annotations[currentFrameN][0],
+                line(output, mousePos, annotations[currentFrameN][lastElement].front(),
                      Color::red, thickness - 1 , CV_AA);
             }
         }
         
         if (mode == ROTA_RECT)
         {
-            int pts = annotations[currentFrameN].size();
+            int pts = annotations[currentFrameN][lastElement].size();
 
             if (pts == 1)
             {
-                line(output, annotations[currentFrameN][0], mousePos,
+                line(output, annotations[currentFrameN][lastElement].front(), mousePos,
                      Color::blue, thickness, CV_AA);
             }
             else if (pts == 2)
             {
 
 
-                Point2f vec = vectorPerpendicularToSegment( annotations[currentFrameN][0],
-                                                           annotations[currentFrameN][1]);
+                Point2f vec = vectorPerpendicularToSegment( annotations[currentFrameN][lastElement].front(),
+                                                           annotations[currentFrameN][lastElement].back());
 
                 float t = closestPointToRay(mousePos,
-                                            annotations[currentFrameN][1],
-                                            annotations[currentFrameN][1] + vec);
+                                            annotations[currentFrameN][lastElement].back(),
+                                            annotations[currentFrameN][lastElement].back()+ vec);
 
                 Point2f p1, p2, p3, p4;
-                p1 = annotations[currentFrameN][0];
-                p2 = annotations[currentFrameN][1];
+                p1 = annotations[currentFrameN][lastElement].front();
+                p2 = annotations[currentFrameN][lastElement].back();
                 p3 = p2 + t * vec;
 
                 if (ratio > 0)
@@ -298,35 +321,11 @@ public:
                     circle(output,  p1, thickness, Color::yellow);
 
             }
-            else
-            {
-                for (i = 0; i < ((int)annotations[currentFrameN].size() - 1); i++)
-                {
-                    line(output, annotations[currentFrameN][i], annotations[currentFrameN][i + 1],
-                         Color::red, thickness, CV_AA );
-                }
-                if (annotations[currentFrameN].size() > 1)
-                {
-                    line(output, annotations[currentFrameN][i], annotations[currentFrameN][0],
-                         Color::red, thickness, CV_AA);
-                }
-            }
-
-
-
         }
 
         if (mode == AXIS_RECT)
         {
-            if (annotations[currentFrameN].size() == 2)
-            {
-                rectangle(output, annotations[currentFrameN][0],
-                                  annotations[currentFrameN][1],
-                                  Color::red,
-                                  thickness,
-                                  CV_AA);
-            }
-            else if (annotations[currentFrameN].size() == 1)
+            if (annotations[currentFrameN][lastElement].size() == 1)
             {
                 Point2f p = mousePos;
 
@@ -334,12 +333,12 @@ public:
                 {
                     Point2f vec(1.0f, ratio);
                     float t = closestPointToRay(mousePos,
-                                                annotations[currentFrameN][0],
-                                                annotations[currentFrameN][0] + vec);
-                    p =  annotations[currentFrameN][0] + t * vec;
+                                                annotations[currentFrameN][lastElement].front(),
+                                                annotations[currentFrameN][lastElement].front() + vec);
+                    p =  annotations[currentFrameN][lastElement].front() + t * vec;
                 }
 
-                rectangle(output, annotations[currentFrameN][0],
+                rectangle(output, annotations[currentFrameN][lastElement].front(),
                           p,
                           Color::blue,
                           thickness,
@@ -358,29 +357,42 @@ public:
      */
     virtual void leftButtonDown(int x, int y, int flags)
     {
-        if (mode == AXIS_RECT && annotations[currentFrameN].size() == 2)
-            return;
-        else if (mode == AXIS_RECT && annotations[currentFrameN].size() == 1)
+        int lastElement  = annotations[currentFrameN].size() - 1;
+
+        if (mode == AXIS_RECT && annotations[currentFrameN][lastElement].size() == 1)
         {
             Point2f p = mousePos;
             if (ratio > 0)
             {
                 Point2f vec(1.0f, ratio);
                 float t = closestPointToRay(mousePos,
-                                            annotations[currentFrameN][0],
-                                            annotations[currentFrameN][0] + vec);
-                p = annotations[currentFrameN][0] + t * vec;
+                                            annotations[currentFrameN][lastElement].front(),
+                                            annotations[currentFrameN][lastElement].front() + vec);
+                p = annotations[currentFrameN][lastElement].front() + t * vec;
             }
-            annotations[currentFrameN].push_back(p);
+            vector<Point2f> tmp = {annotations[currentFrameN][lastElement].front(),p};
+            Rect area = boundingRect(tmp);
+            area.width -= 1;
+            area.height -= 1;
+
+            Point2f tr = area.tl() + Point(area.width, 0);
+            Point2f br = area.br();
+            Point2f bl = area.tl() + Point(0, area.height);
+            annotations[currentFrameN][lastElement].pop_back();
+            annotations[currentFrameN][lastElement].push_back(area.tl());
+            annotations[currentFrameN][lastElement].push_back(tr);
+            annotations[currentFrameN][lastElement].push_back(br);
+            annotations[currentFrameN][lastElement].push_back(bl);
+
+            annotations[currentFrameN].push_back(vector<Point2f>());
+
         }
-        else if (mode == ROTA_RECT && annotations[currentFrameN].size() == 4)
-            return;
-        else if (mode == ROTA_RECT && annotations[currentFrameN].size() == 2)
+        else if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 2)
         {
 
             Point2f p1, p2, p3, p4;
-            p1 = annotations[currentFrameN][0];
-            p2 = annotations[currentFrameN][1];
+            p1 = annotations[currentFrameN][lastElement].front();
+            p2 = annotations[currentFrameN][lastElement].back();
 
 
             Point2f vec = vectorPerpendicularToSegment( p1, p2);
@@ -394,22 +406,25 @@ public:
                 double magP2P3 = cv::norm(p3 - p2);
                 vec_ = (vec_/mag) * (1/ratio) * magP2P3;
                 p1 = p2 + vec_;
-                annotations[currentFrameN][0] = p1;
+                annotations[currentFrameN][lastElement].front() = p1;
             }
             p4 = p1 + t * vec;
 
 
-            annotations[currentFrameN].push_back(p3);
-            annotations[currentFrameN].push_back(p4);
+            annotations[currentFrameN][lastElement].push_back(p3);
+            annotations[currentFrameN][lastElement].push_back(p4);
+
+            annotations[currentFrameN].push_back(vector<Point2f>());
+
         }
-        else if (mode == ROTA_RECT && annotations[currentFrameN].size() == 1)
+        else if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 1)
         {
-            annotations[currentFrameN].push_back(Point2f(x,y));
-            swap(annotations[currentFrameN][0], annotations[currentFrameN][1]);
+            annotations[currentFrameN][lastElement].push_back(Point2f(x,y));
+            swap(annotations[currentFrameN][lastElement].front(), annotations[currentFrameN][lastElement].back());
         }
         else
         {
-            annotations[currentFrameN].push_back(Point2f(x,y));
+            annotations[currentFrameN][lastElement].push_back(Point2f(x,y));
         }
     };
     /**
@@ -433,28 +448,40 @@ public:
      */
     virtual void keyboardInput(int key)
     {
+        int lastElement  = annotations[currentFrameN].size() - 1;
+
         if (key == 'b' || key == 'B')
         {
-            if (mode == ROTA_RECT && annotations[currentFrameN].size() == 4)
+
+            if (annotations[currentFrameN][lastElement].empty() && lastElement > 0)
             {
-                annotations[currentFrameN].pop_back();
+                annotations[currentFrameN]b.pop_back();
             }
-            else if (mode == ROTA_RECT && annotations[currentFrameN].size() == 2)
+            if (mode == AXIS_RECT && annotations[currentFrameN][lastElement].size() == 4)
             {
-                swap(annotations[currentFrameN][0], annotations[currentFrameN][1]);
+                annotations[currentFrameN][lastElement].pop_back();
+                annotations[currentFrameN][lastElement].pop_back();
+            }
+            if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 4)
+            {
+                annotations[currentFrameN][lastElement].pop_back();
+            }
+            else if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 2)
+            {
+                swap(annotations[currentFrameN][lastElement][0], annotations[currentFrameN][lastElement][1]);
             }
 
-            annotations[currentFrameN].pop_back();
+            annotations[currentFrameN][lastElement].pop_back();
         }
         if (key == 'c' || key == 'C')
-            annotations[currentFrameN].clear();
+            annotations[currentFrameN][lastElement].clear();
 
         if (key == 'h' || key == 'H')
             showHelp = !showHelp;
 
         if (key == 'm' || key == 'M')
         {
-            annotations[currentFrameN].clear();
+            annotations[currentFrameN][lastElement].clear();
             mode = (++mode)%3;
         }
         if (key == '-')
@@ -474,52 +501,56 @@ public:
         file.open(filename);
         for (size_t i = 0; i < annotations.size(); i++)
         {
-            if (mode == AXIS_RECT)
+//            if (mode == AXIS_RECT)
+//            {
+//                if (annotations[i].size() > 0)
+//                {
+//                    Rect area = boundingRect(annotations[i]);
+//                    area.width -= 1;
+//                    area.height -= 1;
+//                    Point2f tl = area.tl();
+//                    Point2f tr = area.tl() + Point(area.width, 0);
+//                    Point2f br = area.br();
+//                    Point2f bl = area.tl() + Point(0, area.height);
+//
+//                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
+//                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
+//                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
+//                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
+//                }
+//            }
+//            else if (mode == ROTA_RECT)
+//            {
+//                if (annotations[i].size() > 0)
+//                {
+//                    Point2f tl = annotations[i][0];
+//                    Point2f tr = annotations[i][1];
+//                    Point2f br = annotations[i][2];
+//                    Point2f bl = annotations[i][3];
+//
+//                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
+//                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
+//                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
+//                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
+//                }
+//
+//            }
+//            else if (mode == POLY)
+//            {
+            for (size_t j = 0; j < annotations[i].size(); j++)
             {
-                if (annotations[i].size() > 0)
-                {
-                    Rect area = boundingRect(annotations[i]);
-                    area.width -= 1;
-                    area.height -= 1;
-                    Point2f tl = area.tl();
-                    Point2f tr = area.tl() + Point(area.width, 0);
-                    Point2f br = area.br();
-                    Point2f bl = area.tl() + Point(0, area.height);
-
-                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
-                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
-                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
-                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
-                }
-            }
-            else if (mode == ROTA_RECT)
-            {
-                if (annotations[i].size() > 0)
-                {
-                    Point2f tl = annotations[i][0];
-                    Point2f tr = annotations[i][1];
-                    Point2f br = annotations[i][2];
-                    Point2f bl = annotations[i][3];
-
-                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
-                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
-                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
-                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
-                }
-
-            }
-            else if (mode == POLY)
-            {
-                for (size_t k = 0; k < annotations[i].size(); k++)
+                for (size_t k = 0; k < annotations[i][j].size(); k++)
                 {
 
-                    file << annotations[i][k].x * scaleX << ", "
-                         << annotations[i][k].y * scaleY;
+                    file << annotations[i][j][k].x * scaleX << ", "
+                         << annotations[i][j][k].y * scaleY;
                     
-                    if ( k != (annotations[i].size() - 1))
+                    if ( k != (annotations[i][j].size() - 1))
                         file << ", ";
                 }
+                file << "|";
             }
+//            }n
             file << endl;
         }
     }
