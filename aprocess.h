@@ -140,23 +140,81 @@ private:
         return Point2f( -tmp.y, tmp.x);
     }
 
-    void displayListPoints(Mat &image, const vector<Point2f> &pts, bool close = true)
+    void displayListPoints(Mat &image, const vector<Point2f> &pts, const Scalar &color = Color::red, bool close = true)
     {
         int i = 0;
         for ( i = 0; i < ((int)pts.size() - 1); i++)
         {
             line(image, pts[i], pts[i + 1],
-                 Color::red, thickness, CV_AA );
+                 color, thickness, CV_AA );
         }
-        if (close && pts.size() > 0 )//&& mode != POLY)
+        if (close && pts.size() > 0 )
             line(image, pts[i], pts[0],
-                 Color::red, thickness, CV_AA );
+                 color, thickness, CV_AA );
     }
 
-    void displayHelp(Mat &image)
+
+    void getRRect(const Point2f &mPos, float ratio,
+                          Point2f &p1,
+                          Point2f &p2,
+                          Point2f &p3,
+                          Point2f &p4)
+    {
+        Point2f vec = vectorPerpendicularToSegment( p1,
+                                                   p2);
+
+        float t = closestPointToRay(mPos,
+                                    p2,
+                                    p2 + vec);
+        p3 = p2 + t * vec;
+
+        if (ratio > 0)
+        {
+            Point2f vec_ = p1 - p2;
+            float mag      = cv::norm(vec_);
+            double magP2P3 = cv::norm(p3 - p2);
+            vec_ = (vec_/mag) * (1/ratio) * magP2P3;
+            p1 = p2 + vec_;
+        }
+
+        p4 = p1 + t * vec;
+    }
+
+    void getARect(const Point2f &mPos, float ratio,
+                          Point2f &p1,
+                          Point2f &p2,
+                          Point2f &p3,
+                          Point2f &p4)
+    {
+        Point2f p = mPos;
+
+        if (ratio > 0)
+        {
+            Point2f vec(1.0f, ratio);
+            float t = closestPointToRay(mPos,
+                                        p1,
+                                        p1 + vec);
+            p =  p1 + t * vec;
+        }
+
+        vector<Point2f> tmp = {p1, p};
+        Rect area = boundingRect(tmp);
+        area.width -= 1;
+        area.height -= 1;
+
+        p1 = area.tl();
+        p2 = area.tl() + Point(area.width, 0);
+        p3 = area.br();
+        p4 = area.tl() + Point(0, area.height);
+    }
+
+    void helpHUD(Mat &image)
     {
         std::stringstream ss;
         ss <<  " (m) : ";
+
+        int margin = 10;
+        int fsize  = 20;
 
         if (mode == AXIS_RECT)
             ss << "Axis Align Rectangle ";
@@ -174,22 +232,24 @@ private:
         help.push_back(" (+) : Increase ratio 0.1");
         help.push_back(" (h) : Toggle this help ");
         help.push_back(" (n) : Next frame");
+        help.push_back(" (a) : Accept annotation");
         help.push_back(" (b) : Remove last point");
         help.push_back(" (c) : Clear all points");
         help.push_back(" (SPACE) : Pause/play video");
         help.push_back(" (ESC) : Exit Annotate");
 
 
-        Rect region(10,10, help.size() * 20 + 10, help.size() * 20 + 10);
+        Rect region(margin, margin, help.size() * fsize + margin,
+                                    help.size() * fsize + margin);
         region &= Rect(0,0, image.cols, image.rows);
+
         GaussianBlur(image(region),
                      image(region),
                      Size(0,0), 5);
 
-
-        for (size_t i = 0, h = 20; i < help.size(); i++, h+= 20)
+        for (size_t i = 0, h = fsize; i < help.size(); i++, h+= fsize)
         {
-            putText(image, help[i], Point(20,h),
+            putText(image, help[i], Point(fsize,h),
                     FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
         }
 
@@ -226,13 +286,11 @@ public:
     {}
 
 
-
     virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
     {
         if (currentFrameN != frameN)
         {
             vector<vector<Point2f>> tmp;
-            tmp.push_back(vector<Point2f>());
             annotations.push_back(tmp);
             currentFrameN = frameN;
         }
@@ -241,109 +299,71 @@ public:
         frame.copyTo(output);
 
         if (showHelp)
-            displayHelp(output);
+            helpHUD(output);
 
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
-        {
-            if ( i == annotations[currentFrameN].size() - 1)
-                displayListPoints(output, annotations[currentFrameN][i], false);
-            else
-                displayListPoints(output, annotations[currentFrameN][i], true);
+            displayListPoints(output, annotations[currentFrameN][i], Color::yellow, true);
 
-        }
-
-
-        int lastElement  = annotations[currentFrameN].size() - 1;
+        displayListPoints(output, drawing, Color::red, mode != POLY);
 
 
         if (mode == POLY)
         {
-            if (annotations[currentFrameN][lastElement].size() > 0)
+            if (drawing.size() > 0)
             {
-                line(output, annotations[currentFrameN][lastElement].back(), mousePos,
+                line(output, drawing.back(), mousePos,
                      Color::blue, thickness, CV_AA);
-                line(output, mousePos, annotations[currentFrameN][lastElement].front(),
+                line(output, mousePos, drawing.front(),
                      Color::red, thickness - 1 , CV_AA);
             }
         }
         
         if (mode == ROTA_RECT)
         {
-            int pts = annotations[currentFrameN][lastElement].size();
+            int pts = drawing.size();
 
             if (pts == 1)
             {
-                line(output, annotations[currentFrameN][lastElement].front(), mousePos,
+                line(output, drawing.front(), mousePos,
                      Color::blue, thickness, CV_AA);
             }
             else if (pts == 2)
             {
 
 
-                Point2f vec = vectorPerpendicularToSegment( annotations[currentFrameN][lastElement].front(),
-                                                           annotations[currentFrameN][lastElement].back());
+                vector<Point2f> _rRect(4);
+                _rRect[0] = drawing.back();
+                _rRect[1] = drawing.front();
+                getRRect(mousePos, ratio, _rRect[0], _rRect[1], _rRect[2], _rRect[3]);
 
-                float t = closestPointToRay(mousePos,
-                                            annotations[currentFrameN][lastElement].back(),
-                                            annotations[currentFrameN][lastElement].back()+ vec);
-
-                Point2f p1, p2, p3, p4;
-                p1 = annotations[currentFrameN][lastElement].front();
-                p2 = annotations[currentFrameN][lastElement].back();
-                p3 = p2 + t * vec;
-
-                if (ratio > 0)
+                for (size_t i = 0; i < _rRect.size(); i++)
                 {
-                    Point2f vec_ = p1 - p2;
-                    float mag      = cv::norm(vec_);
-                    double magP2P3 = cv::norm(p3 - p2);
-                    vec_ = (vec_/mag) * (1/ratio) * magP2P3;
-                    p1 = p2 + vec_;
+                    line(output, _rRect[i], _rRect[(i + 1)% 4],
+                         (i==0)? Color::red : Color::blue,
+                         (i==0)? thickness  : thickness - 1, CV_AA);
                 }
 
-                p4 = p1 + t * vec;
-
-                line(output, p1, p2,
-                     Color::red, thickness, CV_AA);
-
-                line(output, p1, p4,
-                     Color::blue, thickness - 1, CV_AA);
-
-                line(output, p2, p3,
-                     Color::blue, thickness - 1, CV_AA);
-
-                line(output, p3, p4,
-                     Color::blue, thickness - 1, CV_AA);
-
-                circle(output, p3, thickness, Color::green);
+                circle(output, _rRect[2], thickness, Color::green);
 
                 if (ratio > 0)
-                    circle(output,  p1, thickness, Color::yellow);
+                    circle(output,  _rRect[0], thickness, Color::yellow);
 
             }
         }
 
         if (mode == AXIS_RECT)
         {
-            if (annotations[currentFrameN][lastElement].size() == 1)
+            if (drawing.size() == 1)
             {
-                Point2f p = mousePos;
-
-                if (ratio > 0)
-                {
-                    Point2f vec(1.0f, ratio);
-                    float t = closestPointToRay(mousePos,
-                                                annotations[currentFrameN][lastElement].front(),
-                                                annotations[currentFrameN][lastElement].front() + vec);
-                    p =  annotations[currentFrameN][lastElement].front() + t * vec;
-                }
-
-                rectangle(output, annotations[currentFrameN][lastElement].front(),
-                          p,
+                vector<Point2f> _aRect(4);
+                _aRect[0] = drawing.front();
+                getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
+                rectangle(output,_aRect[0],
+                          _aRect[2],
                           Color::blue,
                           thickness,
                           CV_AA);
-                circle(output, p, thickness - 1, Color::green);
+                circle(output, _aRect[2], thickness - 1, Color::green);
             }
         }
     };
@@ -357,74 +377,43 @@ public:
      */
     virtual void leftButtonDown(int x, int y, int flags)
     {
-        int lastElement  = annotations[currentFrameN].size() - 1;
 
-        if (mode == AXIS_RECT && annotations[currentFrameN][lastElement].size() == 1)
+        if (mode == AXIS_RECT && drawing.size() == 1)
         {
-            Point2f p = mousePos;
-            if (ratio > 0)
-            {
-                Point2f vec(1.0f, ratio);
-                float t = closestPointToRay(mousePos,
-                                            annotations[currentFrameN][lastElement].front(),
-                                            annotations[currentFrameN][lastElement].front() + vec);
-                p = annotations[currentFrameN][lastElement].front() + t * vec;
-            }
-            vector<Point2f> tmp = {annotations[currentFrameN][lastElement].front(),p};
-            Rect area = boundingRect(tmp);
-            area.width -= 1;
-            area.height -= 1;
-
-            Point2f tr = area.tl() + Point(area.width, 0);
-            Point2f br = area.br();
-            Point2f bl = area.tl() + Point(0, area.height);
-            annotations[currentFrameN][lastElement].pop_back();
-            annotations[currentFrameN][lastElement].push_back(area.tl());
-            annotations[currentFrameN][lastElement].push_back(tr);
-            annotations[currentFrameN][lastElement].push_back(br);
-            annotations[currentFrameN][lastElement].push_back(bl);
-
-            annotations[currentFrameN].push_back(vector<Point2f>());
+            vector<Point2f> _aRect(4);
+            _aRect[0] = drawing.front();
+            getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
+            drawing.pop_back();
+            drawing.push_back(_aRect[0]);
+            drawing.push_back(_aRect[1]);
+            drawing.push_back(_aRect[2]);
+            drawing.push_back(_aRect[3]);
 
         }
-        else if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 2)
+        else if (mode == AXIS_RECT && drawing.size() >= 2)
         {
-
-            Point2f p1, p2, p3, p4;
-            p1 = annotations[currentFrameN][lastElement].front();
-            p2 = annotations[currentFrameN][lastElement].back();
-
-
-            Point2f vec = vectorPerpendicularToSegment( p1, p2);
-            float t = closestPointToRay(mousePos, p2, p2 + vec);
-            p3 = p2 + t * vec;
-
-            if (ratio > 0)
-            {
-                Point2f vec_ = p1 - p2;
-                float mag      = cv::norm(vec_);
-                double magP2P3 = cv::norm(p3 - p2);
-                vec_ = (vec_/mag) * (1/ratio) * magP2P3;
-                p1 = p2 + vec_;
-                annotations[currentFrameN][lastElement].front() = p1;
-            }
-            p4 = p1 + t * vec;
-
-
-            annotations[currentFrameN][lastElement].push_back(p3);
-            annotations[currentFrameN][lastElement].push_back(p4);
-
-            annotations[currentFrameN].push_back(vector<Point2f>());
-
+            newAnnotation();
+            drawing.push_back(Point2f(x,y));
         }
-        else if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 1)
+        else if (mode == ROTA_RECT && drawing.size() >= 4)
         {
-            annotations[currentFrameN][lastElement].push_back(Point2f(x,y));
-            swap(annotations[currentFrameN][lastElement].front(), annotations[currentFrameN][lastElement].back());
+            newAnnotation();
+            drawing.push_back(Point2f(x,y));
+        }
+        else if (mode == ROTA_RECT && drawing.size() == 2)
+        {
+            Point2f p3, p4;
+            getRRect(mousePos, ratio, drawing.back(), drawing.front(), p3, p4);
+            drawing.push_back(p4);
+            drawing.push_back(p3);
+        }
+        else if (mode == ROTA_RECT && drawing.size() == 1)
+        {
+            drawing.push_back(Point2f(x,y));
         }
         else
         {
-            annotations[currentFrameN][lastElement].push_back(Point2f(x,y));
+            drawing.push_back(Point2f(x,y));
         }
     };
     /**
@@ -448,40 +437,46 @@ public:
      */
     virtual void keyboardInput(int key)
     {
-        int lastElement  = annotations[currentFrameN].size() - 1;
-
         if (key == 'b' || key == 'B')
         {
-
-            if (annotations[currentFrameN][lastElement].empty() && lastElement > 0)
+            if (drawing.empty())
             {
-                annotations[currentFrameN]b.pop_back();
+                if (!annotations[currentFrameN].empty())
+                    annotations[currentFrameN].pop_back();
             }
-            if (mode == AXIS_RECT && annotations[currentFrameN][lastElement].size() == 4)
+            if (mode == AXIS_RECT && drawing.size() == 4)
             {
-                annotations[currentFrameN][lastElement].pop_back();
-                annotations[currentFrameN][lastElement].pop_back();
+                drawing.pop_back();
+                drawing.pop_back();
             }
-            if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 4)
+            if (mode == ROTA_RECT && drawing.size() == 4)
             {
-                annotations[currentFrameN][lastElement].pop_back();
+                drawing.pop_back();
             }
-            else if (mode == ROTA_RECT && annotations[currentFrameN][lastElement].size() == 2)
+            else if (mode == ROTA_RECT && drawing.size() == 2)
             {
-                swap(annotations[currentFrameN][lastElement][0], annotations[currentFrameN][lastElement][1]);
+                //swap(drawing[0], drawing[1]);
             }
-
-            annotations[currentFrameN][lastElement].pop_back();
+            if (!drawing.empty())
+                drawing.pop_back();
         }
         if (key == 'c' || key == 'C')
-            annotations[currentFrameN][lastElement].clear();
-
+        {
+            drawing.clear();
+            while (!annotations[currentFrameN].empty())
+                annotations[currentFrameN].pop_back();
+        }
         if (key == 'h' || key == 'H')
             showHelp = !showHelp;
 
+        if (key == 'a' || key == 'A')
+        {
+            newAnnotation();
+        }
+
         if (key == 'm' || key == 'M')
         {
-            annotations[currentFrameN][lastElement].clear();
+            drawing.clear();
             mode = (++mode)%3;
         }
         if (key == '-')
@@ -494,6 +489,11 @@ public:
         }
     };
 
+    virtual void newAnnotation()
+    {
+        annotations[currentFrameN].push_back(drawing);
+        drawing.clear();
+    }
 
     virtual void writeAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
     {
@@ -501,42 +501,7 @@ public:
         file.open(filename);
         for (size_t i = 0; i < annotations.size(); i++)
         {
-//            if (mode == AXIS_RECT)
-//            {
-//                if (annotations[i].size() > 0)
-//                {
-//                    Rect area = boundingRect(annotations[i]);
-//                    area.width -= 1;
-//                    area.height -= 1;
-//                    Point2f tl = area.tl();
-//                    Point2f tr = area.tl() + Point(area.width, 0);
-//                    Point2f br = area.br();
-//                    Point2f bl = area.tl() + Point(0, area.height);
-//
-//                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
-//                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
-//                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
-//                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
-//                }
-//            }
-//            else if (mode == ROTA_RECT)
-//            {
-//                if (annotations[i].size() > 0)
-//                {
-//                    Point2f tl = annotations[i][0];
-//                    Point2f tr = annotations[i][1];
-//                    Point2f br = annotations[i][2];
-//                    Point2f bl = annotations[i][3];
-//
-//                    file << tl.x * scaleX  << ", " << tl.y * scaleY  << ", "
-//                         << tr.x * scaleX  << ", " << tr.y * scaleY  << ", "
-//                         << br.x * scaleX  << ", " << br.y * scaleY  << ", "
-//                         << bl.x * scaleX  << ", " << bl.y * scaleY ;
-//                }
-//
-//            }
-//            else if (mode == POLY)
-//            {
+
             for (size_t j = 0; j < annotations[i].size(); j++)
             {
                 for (size_t k = 0; k < annotations[i][j].size(); k++)
@@ -548,9 +513,9 @@ public:
                     if ( k != (annotations[i][j].size() - 1))
                         file << ", ";
                 }
-                file << "|";
+                if ( j != (annotations[i].size() - 1))
+                    file << "|";
             }
-//            }n
             file << endl;
         }
     }
