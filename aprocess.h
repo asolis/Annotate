@@ -117,6 +117,7 @@ private:
 
     long currentFrameN;
     Point2f mousePos;
+    Point2f mouseShift;
     int thickness;
     int mode;
     float ratio;
@@ -133,13 +134,47 @@ private:
         float len_sq = C*C + D*D;
         return dot/len_sq;
     }
-
+    bool acceptDrawingPolygon()
+    {
+        return  (mode == AXIS_RECT && drawing.size() >= 2) ||
+                (mode == ROTA_RECT && drawing.size() >= 4) ||
+                (mode == POLY && drawing.size() >= 3);
+    }
+    void swapPolygon(int i)
+    {
+        if (acceptDrawingPolygon())
+        {
+            swap(drawing, annotations[currentFrameN][i]);
+            swap(mode, modes[currentFrameN][i]);
+        }
+        else
+        {
+            //switch drawing polygon and mode
+            drawing = annotations[currentFrameN][i];
+            mode = modes[currentFrameN][i];
+            annotations[currentFrameN].erase(annotations[currentFrameN].begin() + i);
+            modes[currentFrameN].erase(modes[currentFrameN].begin() + i);
+        }
+    }
+    bool ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
+    {
+        return polygon.size() > 0 && pointPolygonTest(polygon, pt, false) > 0;
+    }
+    int findIndexOfPolygonContainingPt(const Point2f &pt)
+    {
+        int found = -1;
+        for ( size_t i = 0; i < annotations[currentFrameN].size(); i++)
+        {
+            if (ptInsidePolygon(pt, annotations[currentFrameN][i]))
+                return i;
+        }
+        return found;
+    }
     Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
     {
         Point2f tmp = e - s;
         return Point2f( -tmp.y, tmp.x);
     }
-
     void displayListPoints(Mat &image, const vector<Point2f> &pts, const Scalar &color = Color::red, bool close = true)
     {
         int i = 0;
@@ -152,8 +187,6 @@ private:
             line(image, pts[i], pts[0],
                  color, thickness, CV_AA );
     }
-
-
     void getRRect(const Point2f &mPos, float ratio,
                           Point2f &p1,
                           Point2f &p2,
@@ -179,7 +212,6 @@ private:
 
         p4 = p1 + t * vec;
     }
-
     void getARect(const Point2f &mPos, float ratio,
                           Point2f &p1,
                           Point2f &p2,
@@ -207,7 +239,6 @@ private:
         p3 = area.br();
         p4 = area.tl() + Point(0, area.height);
     }
-
     void helpHUD(Mat &image)
     {
         std::stringstream ss;
@@ -236,6 +267,7 @@ private:
         help.push_back(" (b) : Remove last point");
         help.push_back(" (c) : Clear all points");
         help.push_back(" (SPACE) : Pause/play video");
+        help.push_back(" (SHIFT + Click) : Select Polygon");
         help.push_back(" (ESC) : Exit Annotate");
 
 
@@ -255,6 +287,12 @@ private:
 
     }
 
+    Point2f centroid(const vector<Point2f> &corners)
+    {
+        Moments mu = moments(corners);
+        return Point2f(mu.m10/mu.m00, mu.m01/mu.m00);
+    }
+
 public:
     enum {
         AXIS_RECT,
@@ -263,6 +301,7 @@ public:
     };
 
     vector<vector<vector<Point2f>>> annotations;
+    vector<vector<int>> modes;
     vector<Point2f> drawing;
 
     /*
@@ -277,11 +316,13 @@ public:
                     int   method  = POLY):
                       currentFrameN(-1),
                       mousePos(-1,-1),
+                      mouseShift(-1,-1),
                       thickness(2),
                       mode(method),
                       ratio(ratioYX),
                       showHelp(true),
                       annotations(),
+                      modes(),
                       drawing()
     {}
 
@@ -292,6 +333,10 @@ public:
         {
             vector<vector<Point2f>> tmp;
             annotations.push_back(tmp);
+
+            vector<int> tmp2;
+            modes.push_back(tmp2);
+
             currentFrameN = frameN;
         }
 
@@ -377,43 +422,55 @@ public:
      */
     virtual void leftButtonDown(int x, int y, int flags)
     {
+        if  (flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY)
+        {
+            mouseShift = Point2f(x,y);
+            int found = findIndexOfPolygonContainingPt(mouseShift);
+            if (found >= 0)
+                swapPolygon(found);
 
-        if (mode == AXIS_RECT && drawing.size() == 1)
-        {
-            vector<Point2f> _aRect(4);
-            _aRect[0] = drawing.front();
-            getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
-            drawing.pop_back();
-            drawing.push_back(_aRect[0]);
-            drawing.push_back(_aRect[1]);
-            drawing.push_back(_aRect[2]);
-            drawing.push_back(_aRect[3]);
-
-        }
-        else if (mode == AXIS_RECT && drawing.size() >= 2)
-        {
-            newAnnotation();
-            drawing.push_back(Point2f(x,y));
-        }
-        else if (mode == ROTA_RECT && drawing.size() >= 4)
-        {
-            newAnnotation();
-            drawing.push_back(Point2f(x,y));
-        }
-        else if (mode == ROTA_RECT && drawing.size() == 2)
-        {
-            Point2f p3, p4;
-            getRRect(mousePos, ratio, drawing.back(), drawing.front(), p3, p4);
-            drawing.push_back(p4);
-            drawing.push_back(p3);
-        }
-        else if (mode == ROTA_RECT && drawing.size() == 1)
-        {
-            drawing.push_back(Point2f(x,y));
         }
         else
         {
-            drawing.push_back(Point2f(x,y));
+            if (mode == AXIS_RECT && drawing.size() == 1)
+            {
+                vector<Point2f> _aRect(4);
+                _aRect[0] = drawing.front();
+                getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
+                drawing.pop_back();
+                drawing.push_back(_aRect[0]);
+                drawing.push_back(_aRect[1]);
+                drawing.push_back(_aRect[2]);
+                drawing.push_back(_aRect[3]);
+
+            }
+            else if (mode == AXIS_RECT && drawing.size() >= 2)
+            {
+                newAnnotation();
+                drawing.push_back(Point2f(x,y));
+            }
+            else if (mode == ROTA_RECT && drawing.size() >= 4)
+            {
+                newAnnotation();
+                drawing.push_back(Point2f(x,y));
+            }
+            else if (mode == ROTA_RECT && drawing.size() == 2)
+            {
+                Point2f p3, p4;
+                getRRect(mousePos, ratio, drawing.back(), drawing.front(), p3, p4);
+                drawing.push_back(p4);
+                drawing.push_back(p3);
+            }
+            else if (mode == ROTA_RECT && drawing.size() == 1)
+            {
+                drawing.push_back(Point2f(x,y));
+            }
+            else
+            {
+                drawing.push_back(Point2f(x,y));
+            }
+
+            mouseShift = centroid(drawing);
         }
     };
     /**
@@ -429,6 +486,15 @@ public:
      */
     virtual void mouseMove(int x, int y, int flags)
     {
+        if  ((flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY) &&
+             ptInsidePolygon(Point2f(x,y), drawing))
+        {
+            Point2f vector =  Point2f(x,y) - mouseShift;
+            for(size_t i = 0; i < drawing.size(); i++ )
+                drawing[i]+= vector;
+
+            mouseShift = mouseShift + vector;
+        }
         mousePos = Point2f(x,y);
     };
 
@@ -453,10 +519,6 @@ public:
             {
                 drawing.pop_back();
             }
-            else if (mode == ROTA_RECT && drawing.size() == 2)
-            {
-                //swap(drawing[0], drawing[1]);
-            }
             if (!drawing.empty())
                 drawing.pop_back();
         }
@@ -476,7 +538,7 @@ public:
 
         if (key == 'm' || key == 'M')
         {
-            drawing.clear();
+            newAnnotation();
             mode = (++mode)%3;
         }
         if (key == '-')
@@ -491,8 +553,12 @@ public:
 
     virtual void newAnnotation()
     {
-        annotations[currentFrameN].push_back(drawing);
-        drawing.clear();
+        if (acceptDrawingPolygon())
+        {
+            annotations[currentFrameN].push_back(drawing);
+            modes[currentFrameN].push_back(mode);
+            drawing.clear();
+        }
     }
 
     virtual void writeAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
