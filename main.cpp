@@ -44,8 +44,11 @@ int main(int argc, const char * argv[])
         "{help h            |           | print this message}"
         "{@sequence         |           | url, file, folder, sequence}"
         "{m method          |p          | choices = p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
+        "{W width           |-1         | scale input using this width, keeps aspect ratio annotations will be transformed to the initial image size}"
+        "{H height          |720        | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
         "{o output          |           | filename for annnotation results}"
+
     ;
 
     CommandLineParser parser(argc, argv, keys);
@@ -56,8 +59,8 @@ int main(int argc, const char * argv[])
     string sequence = parser.get<string>(0);
     string mname    = parser.get<string>("m");
 
-    Ptr<Input> input = InputFactory::create(sequence, Size(-1, 720));
-
+    Ptr<Input> input = InputFactory::create(sequence,
+                                    Size(parser.get<int>("W"), parser.get<int>("H")));
 
     int method = AnnotateProcess::POLY;
     if (mname == "a")

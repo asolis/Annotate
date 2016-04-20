@@ -64,56 +64,42 @@ struct Color
 class InputFactory
 {
 public:
-    static bool isVideoFile(const string &sequence)
-    {
-        return (viva::Files::isFile(sequence));
-    }
-    static bool isWebFile(const string &sequence)
-    {
-        return sequence.substr(0,4) == "http";
-    }
-    static bool isStringSequence(const string &sequence)
-    {
-        char res0[sequence.length() * 2];
-        char res1[sequence.length() * 2];
-        sprintf(res0, sequence.c_str(), 0);
-        sprintf(res1, sequence.c_str(), 1);
-        string path0(res0);
-        string path1(res1);
-        return (viva::Files::isFile(path0) || viva::Files::isFile(path1));
-    }
-    static bool isFolderSequence(const string &sequence)
-    {
-        return (viva::Files::isDir(sequence));
-    }
-
-
-    static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1))
-    {
-        if (isVideoFile(sequence))
-        {
-            return new VideoInput(sequence, sz);
-        }
-        if (isWebFile(sequence))
-        {
-            return new VideoInput(sequence, sz);
-        }
-        if (isStringSequence(sequence))
-        {
-            return new VideoInput(sequence, sz);
-        }
-        if (isFolderSequence(sequence))
-        {
-            return new ImageListInput(sequence, sz, -1, 0);
-        }
-        return Ptr<Input>();
-    }
+    static bool isVideoFile(const string &sequence);
+    static bool isWebFile(const string &sequence);
+    static bool isStringSequence(const string &sequence);
+    static bool isFolderSequence(const string &sequence);
+    static bool isCameraID(const string &s);
+    static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
 };
 
 
 class AnnotateProcess : public ProcessFrame
 {
 private:
+    float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
+    bool  acceptPolygon(const vector<Point2f> &polyg, int m);
+    void  swapPolygon(int i);
+    bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
+    int   findIndexOfPolygonContainingPt(const Point2f &pt);
+    Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
+    void displayPolygon(Mat &image,
+                        const vector<Point2f> &pts,
+                        const Scalar &color = Color::red,
+                        bool close = true);
+    void getRRect(const Point2f &mPos, float ratio,
+                          Point2f &p1,
+                          Point2f &p2,
+                          Point2f &p3,
+                  Point2f &p4);
+    void getARect(const Point2f &mPos, float ratio,
+                          Point2f &p1,
+                          Point2f &p2,
+                          Point2f &p3,
+                  Point2f &p4);
+    void helpHUD(Mat &image);
+
+    Point2f centroid(const vector<Point2f> &corners);
+
 
     long currentFrameN;
     Point2f mousePos;
@@ -122,179 +108,12 @@ private:
     int mode;
     float ratio;
     bool showHelp;
-
-    float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
-    {
-        float A = pt.x - s.x;
-        float B = pt.y - s.y;
-        float C = e.x - s.x;
-        float D = e.y - s.y;
-
-        float dot = A*C + B*D;
-        float len_sq = C*C + D*D;
-        return dot/len_sq;
-    }
-    bool acceptDrawingPolygon()
-    {
-        return  (mode == AXIS_RECT && drawing.size() >= 2) ||
-                (mode == ROTA_RECT && drawing.size() >= 4) ||
-                (mode == POLY && drawing.size() >= 3);
-    }
-    void swapPolygon(int i)
-    {
-        if (acceptDrawingPolygon())
-        {
-            swap(drawing, annotations[currentFrameN][i]);
-            swap(mode, modes[currentFrameN][i]);
-        }
-        else
-        {
-            //switch drawing polygon and mode
-            drawing = annotations[currentFrameN][i];
-            mode = modes[currentFrameN][i];
-            annotations[currentFrameN].erase(annotations[currentFrameN].begin() + i);
-            modes[currentFrameN].erase(modes[currentFrameN].begin() + i);
-        }
-    }
-    bool ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
-    {
-        return polygon.size() > 0 && pointPolygonTest(polygon, pt, false) > 0;
-    }
-    int findIndexOfPolygonContainingPt(const Point2f &pt)
-    {
-        int found = -1;
-        for ( size_t i = 0; i < annotations[currentFrameN].size(); i++)
-        {
-            if (ptInsidePolygon(pt, annotations[currentFrameN][i]))
-                return i;
-        }
-        return found;
-    }
-    Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
-    {
-        Point2f tmp = e - s;
-        return Point2f( -tmp.y, tmp.x);
-    }
-    void displayListPoints(Mat &image, const vector<Point2f> &pts, const Scalar &color = Color::red, bool close = true)
-    {
-        int i = 0;
-        for ( i = 0; i < ((int)pts.size() - 1); i++)
-        {
-            line(image, pts[i], pts[i + 1],
-                 color, thickness, CV_AA );
-        }
-        if (close && pts.size() > 0 )
-            line(image, pts[i], pts[0],
-                 color, thickness, CV_AA );
-    }
-    void getRRect(const Point2f &mPos, float ratio,
-                          Point2f &p1,
-                          Point2f &p2,
-                          Point2f &p3,
-                          Point2f &p4)
-    {
-        Point2f vec = vectorPerpendicularToSegment( p1,
-                                                   p2);
-
-        float t = closestPointToRay(mPos,
-                                    p2,
-                                    p2 + vec);
-        p3 = p2 + t * vec;
-
-        if (ratio > 0)
-        {
-            Point2f vec_ = p1 - p2;
-            float mag      = cv::norm(vec_);
-            double magP2P3 = cv::norm(p3 - p2);
-            vec_ = (vec_/mag) * (1/ratio) * magP2P3;
-            p1 = p2 + vec_;
-        }
-
-        p4 = p1 + t * vec;
-    }
-    void getARect(const Point2f &mPos, float ratio,
-                          Point2f &p1,
-                          Point2f &p2,
-                          Point2f &p3,
-                          Point2f &p4)
-    {
-        Point2f p = mPos;
-
-        if (ratio > 0)
-        {
-            Point2f vec(1.0f, ratio);
-            float t = closestPointToRay(mPos,
-                                        p1,
-                                        p1 + vec);
-            p =  p1 + t * vec;
-        }
-
-        vector<Point2f> tmp = {p1, p};
-        Rect area = boundingRect(tmp);
-        area.width -= 1;
-        area.height -= 1;
-
-        p1 = area.tl();
-        p2 = area.tl() + Point(area.width, 0);
-        p3 = area.br();
-        p4 = area.tl() + Point(0, area.height);
-    }
-    void helpHUD(Mat &image)
-    {
-        std::stringstream ss;
-        ss <<  " (m) : ";
-
-        int margin = 10;
-        int fsize  = 20;
-
-        if (mode == AXIS_RECT)
-            ss << "Axis Align Rectangle ";
-        else if (mode == ROTA_RECT)
-            ss << "Rotated Rectangle ";
-        else
-            ss << "Polygon ";
-
-        if (ratio > 0 && mode != POLY)
-            ss << "(ratio=" << ratio << ")";
-
-        vector<string> help;
-        help.push_back(ss.str());
-        help.push_back(" (-) : Reduce ratio 0.1");
-        help.push_back(" (+) : Increase ratio 0.1");
-        help.push_back(" (h) : Toggle this help ");
-        help.push_back(" (n) : Next frame");
-        help.push_back(" (a) : Accept annotation");
-        help.push_back(" (b) : Remove last point");
-        help.push_back(" (c) : Clear all points");
-        help.push_back(" (SPACE) : Pause/play video");
-        help.push_back(" (SHIFT + Click) : Select Polygon");
-        help.push_back(" (ESC) : Exit Annotate");
-
-
-        Rect region(margin, margin, help.size() * fsize + margin,
-                                    help.size() * fsize + margin);
-        region &= Rect(0,0, image.cols, image.rows);
-
-        GaussianBlur(image(region),
-                     image(region),
-                     Size(0,0), 5);
-
-        for (size_t i = 0, h = fsize; i < help.size(); i++, h+= fsize)
-        {
-            putText(image, help[i], Point(fsize,h),
-                    FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
-        }
-
-    }
-
-    Point2f centroid(const vector<Point2f> &corners)
-    {
-        Moments mu = moments(corners);
-        return Point2f(mu.m10/mu.m00, mu.m01/mu.m00);
-    }
+    bool continuity;
 
 public:
-    enum {
+
+    enum
+    {
         AXIS_RECT,
         ROTA_RECT,
         POLY
@@ -313,7 +132,8 @@ public:
      */
 
     AnnotateProcess(float ratioYX = -1.f,
-                    int   method  = POLY):
+                    int   method  = POLY,
+                    bool  cont    =  true):
                       currentFrameN(-1),
                       mousePos(-1,-1),
                       mouseShift(-1,-1),
@@ -321,6 +141,7 @@ public:
                       mode(method),
                       ratio(ratioYX),
                       showHelp(true),
+                      continuity(cont),
                       annotations(),
                       modes(),
                       drawing()
@@ -331,12 +152,19 @@ public:
     {
         if (currentFrameN != frameN)
         {
-            vector<vector<Point2f>> tmp;
-            annotations.push_back(tmp);
+            if (continuity && frameN > 0)
+            {
+                annotations.push_back(annotations[annotations.size() - 1]);
+                modes.push_back(modes[modes.size() - 1]);
+            }
+            else
+            {
+                vector<vector<Point2f>> tmp;
+                annotations.push_back(tmp);
 
-            vector<int> tmp2;
-            modes.push_back(tmp2);
-
+                vector<int> tmp2;
+                modes.push_back(tmp2);
+            }
             currentFrameN = frameN;
         }
 
@@ -347,9 +175,9 @@ public:
             helpHUD(output);
 
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
-            displayListPoints(output, annotations[currentFrameN][i], Color::yellow, true);
+            displayPolygon(output, annotations[currentFrameN][i], Color::yellow, true);
 
-        displayListPoints(output, drawing, Color::red, mode != POLY);
+        displayPolygon(output, drawing, Color::red, mode != POLY);
 
 
         if (mode == POLY)
@@ -553,7 +381,7 @@ public:
 
     virtual void newAnnotation()
     {
-        if (acceptDrawingPolygon())
+        if (acceptPolygon(drawing, mode))
         {
             annotations[currentFrameN].push_back(drawing);
             modes[currentFrameN].push_back(mode);
