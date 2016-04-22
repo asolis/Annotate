@@ -1,8 +1,7 @@
 ## Annotate is a multiple object ground truth annotation tool using polygons. 
 
-The Annotate tool allows you to create your video sequence annotations using representations such as, 
-rectangles, rotated rectangles and polygons. It generates a text file with the annotations
-for each frame following a simple CSV format. 
+The Annotate tool allows you to create your video sequence annotations using polygonal representations.
+It generates a text file with the annotations for each frame following a simple CSV format. 
 
 Among the possible applications Annotate could be useful for creating ground truth for:
 
