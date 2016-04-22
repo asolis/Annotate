@@ -7,7 +7,7 @@ for each frame following a simple CSV format.
 Among the possible applications Annotate could be useful for creating ground truth for:
 
 1. Pedestrian, people or re-identification datasets
-2. Upper body, face or other human parts or annotations
+2. Upper body, face or other parts datasets
 3. Object detection datasets
 4. Object tracking datasets
 
