@@ -83,6 +83,9 @@ private:
     bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
     int   findIndexOfPolygonContainingPt(const Point2f &pt);
     Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
+    void displayPolygonNumber(Mat &image,
+                              const vector<Point2f> &pts,
+                              int number);
     void displayPolygon(Mat &image,
                         const vector<Point2f> &pts,
                         const Scalar &color = Color::red,
@@ -211,7 +214,10 @@ public:
             helpHUD(output);
 
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
+        {
             displayPolygon(output, annotations[currentFrameN][i], Color::yellow, true);
+            displayPolygonNumber(output, annotations[currentFrameN][i], i + 1);
+        }
 
         displayPolygon(output, drawing, Color::red, mode != POLY);
 
@@ -221,7 +227,7 @@ public:
             if (drawing.size() > 0)
             {
                 line(output, drawing.back(), mousePos,
-                     Color::blue, thickness, CV_AA);
+                     Color::blue, thickness - 1, CV_AA);
                 line(output, mousePos, drawing.front(),
                      Color::red, thickness - 1 , CV_AA);
             }
@@ -234,7 +240,7 @@ public:
             if (pts == 1)
             {
                 line(output, drawing.front(), mousePos,
-                     Color::blue, thickness, CV_AA);
+                     Color::blue, thickness - 1, CV_AA);
             }
             else if (pts == 2)
             {
@@ -270,7 +276,7 @@ public:
                 rectangle(output,_aRect[0],
                           _aRect[2],
                           Color::blue,
-                          thickness,
+                          thickness - 1,
                           CV_AA);
                 circle(output, _aRect[2], thickness - 1, Color::green);
             }
