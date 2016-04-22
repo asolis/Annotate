@@ -1,14 +1,22 @@
-## Welcome to the vivaVideo project
+## Annotate is a multiple object ground truth annotation tool using polygons. 
 
-**VivaVideo** is a base project to create your own C++ video-based OpenCV algorithms. 
+The Annotate tool allows you to create your video sequence annotations using representations such as, 
+rectangles, rotated rectangles and polygons. It generates a text file with the annotations
+for each frame following a simple CSV format. 
 
-Enclosed in this project you will find the **vivalib** framework.
-The **vivaVideo** project uses the concurrent **vivalib** framework
- to process video or image sequences and generate video outputs of your algorithm. 
- 
- 
-The **vivalib** framework uses the C++11 multithreading support to process video or image sequences in parallel. 
- The framework implements multithreading in a transparent way for the user, this allows the user to focus only in the computer vision task.
+Among the possible applications Annotate could be useful for creating ground truth for:
+
+1. Pedestrian, people or re-identification datasets
+2. Upper body, face or other human parts or annotations
+3. Object detection datasets
+4. Object tracking datasets
+
+In general, any project where a polygonal representation of your target is needed, Annotate will
+help to create it. 
+
+The Annotate tool can also provide a prediction for target positions to help annotating large datasets. 
+Currently, it uses our [sKCF](https://github.com/asolis/vivaTracker) tracking algorithm to 
+predict the target's new location.  
 
  
-For more detailed information reefer to the project's  [wiki](https://github.com/asolis/vivaVideo/wiki).
+For more detailed information and examples of how to use reefer to the project's  [wiki](https://github.com/asolis/Annotate/wiki).
