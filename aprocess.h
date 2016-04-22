@@ -37,6 +37,7 @@
 #define __annotate__process__
 
 #include "viva.h"
+#include "skcfdcf.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -109,6 +110,7 @@ private:
     float ratio;
     bool showHelp;
     bool continuity;
+    bool tracking;
 
 public:
 
@@ -123,6 +125,9 @@ public:
     vector<vector<int>> modes;
     vector<Point2f> drawing;
 
+    vector<Ptr<SKCFDCF>> trackers;
+    Mat currentFrame;
+
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
      *                  a negative value will remove any ratio constraint.
@@ -133,7 +138,8 @@ public:
 
     AnnotateProcess(float ratioYX = -1.f,
                     int   method  = POLY,
-                    bool  cont    =  true):
+                    bool  cont    =  true,
+                    bool  track   =  true):
                       currentFrameN(-1),
                       mousePos(-1,-1),
                       mouseShift(-1,-1),
@@ -142,9 +148,12 @@ public:
                       ratio(ratioYX),
                       showHelp(true),
                       continuity(cont),
+                      tracking(track),
                       annotations(),
                       modes(),
-                      drawing()
+                      drawing(),
+                      trackers(),
+                      currentFrame()
     {}
 
 
@@ -152,11 +161,13 @@ public:
     {
         if (currentFrameN != frameN)
         {
-            if (continuity && frameN > 0)
+            /** copy annotations from previous frame to current frame**/
+            if ((continuity || tracking) && frameN > 0)
             {
                 annotations.push_back(annotations[annotations.size() - 1]);
                 modes.push_back(modes[modes.size() - 1]);
             }
+            /** create new set of empty annotations for the current frame**/
             else
             {
                 vector<vector<Point2f>> tmp;
@@ -164,10 +175,35 @@ public:
 
                 vector<int> tmp2;
                 modes.push_back(tmp2);
-            }
-            currentFrameN = frameN;
-        }
 
+                trackers.clear();
+            }
+
+            currentFrameN = frameN;
+            frame.copyTo(currentFrame);
+
+
+            /** if tracking is selected, propose a new position for the previous
+                frame annotations **/
+
+            if (tracking)
+            {
+                for (size_t i = 0; i < trackers.size(); i++)
+                {
+                    trackers[i]->processFrame(frame);
+                    Point2f deltha;
+                    float scale;
+                    trackers[i]->getTransformation(deltha, scale);
+
+                    for (size_t p = 0; p < annotations[currentFrameN][i].size(); p++)
+                    {
+                        annotations[currentFrameN][i][p] += deltha;
+                    }
+                }
+            }
+
+
+        }
 
         frame.copyTo(output);
 
@@ -336,7 +372,11 @@ public:
             if (drawing.empty())
             {
                 if (!annotations[currentFrameN].empty())
+                {
                     annotations[currentFrameN].pop_back();
+                    if (tracking && !trackers.empty())
+                        trackers.pop_back();
+                }
             }
             if (mode == AXIS_RECT && drawing.size() == 4)
             {
@@ -355,9 +395,17 @@ public:
             drawing.clear();
             while (!annotations[currentFrameN].empty())
                 annotations[currentFrameN].pop_back();
+
+            if (tracking)
+                trackers.clear();
         }
         if (key == 'h' || key == 'H')
             showHelp = !showHelp;
+
+        if (key == 'd' || key == 'D')
+        {
+            drawing.clear();
+        }
 
         if (key == 'a' || key == 'A')
         {
@@ -379,12 +427,35 @@ public:
         }
     };
 
+    virtual void newTracker()
+    {
+        if (tracking)
+        {
+            Ptr<SKCFDCF> tmp = new SKCFDCF();
+            Rect area = boundingRect(drawing);
+            area.width -= 1;
+            area.height -= 1;
+            tmp->initialize(currentFrame,area);
+            trackers.push_back(tmp);
+        }
+    }
+    virtual void remTracker(int i)
+    {
+        if (tracking && i >= 0 && i < trackers.size())
+        {
+            trackers.erase(trackers.begin() + i);
+        }
+    }
+
     virtual void newAnnotation()
     {
         if (acceptPolygon(drawing, mode))
         {
             annotations[currentFrameN].push_back(drawing);
             modes[currentFrameN].push_back(mode);
+
+            newTracker();
+
             drawing.clear();
         }
     }

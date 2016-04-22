@@ -43,10 +43,11 @@ int main(int argc, const char * argv[])
     const String keys =
         "{help h            |           | print this message}"
         "{@sequence         |           | url, file, folder, sequence}"
-        "{m method          |p          | choices = p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
+        "{m method          |p          | choices =  p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
         "{W width           |-1         | scale input using this width, keeps aspect ratio annotations will be transformed to the initial image size}"
-        "{H height          |720        | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
+        "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
+        "{t track           |e          | choices =  e | d | n  (i.e., enable, disable, and new). The 'e' enable option will generate a proposal position for next frame. Disable 'd' option will keep the same position from previous frame. New 'n' will clear the annotations from previous frame}"
         "{o output          |           | filename for annnotation results}"
 
     ;
@@ -60,7 +61,8 @@ int main(int argc, const char * argv[])
     string mname    = parser.get<string>("m");
 
     Ptr<Input> input = InputFactory::create(sequence,
-                                    Size(parser.get<int>("W"), parser.get<int>("H")));
+                                    Size(parser.get<int>("W"),
+                                         parser.get<int>("H")));
 
     int method = AnnotateProcess::POLY;
     if (mname == "a")
@@ -68,7 +70,12 @@ int main(int argc, const char * argv[])
     else if (mname == "r")
         method = AnnotateProcess::ROTA_RECT;
 
-    Ptr<AnnotateProcess> process = new AnnotateProcess(parser.get<float>("r"), method);
+    string track = parser.get<string>("t");
+    bool continuity = (track == "d" || track == "e");
+    bool tracking   = (track == "e");
+    Ptr<AnnotateProcess> process =
+                new AnnotateProcess(parser.get<float>("r"),
+                                    method, continuity, tracking);
 
     Processor processor;
     processor.setInput(input);

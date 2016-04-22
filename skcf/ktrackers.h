@@ -429,6 +429,15 @@ public:
     {
         return _params.scale;
     }
+
+    Point2f getShift()
+    {
+        return _shift;
+    }
+    float getScale()
+    {
+        return _scale;
+    }
     
 protected:
     TObj         _target;
@@ -436,6 +445,10 @@ protected:
     KFlow        _flow;
     
     Point2f      _ptl;
+
+    //new stuff
+    Point2f      _shift;
+    double       _scale;
     
     
 private:

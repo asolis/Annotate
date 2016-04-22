@@ -134,6 +134,7 @@ void AnnotateProcess::swapPolygon(int i)
         annotations[currentFrameN].erase(annotations[currentFrameN].begin() + i);
         modes[currentFrameN].erase(modes[currentFrameN].begin() + i);
     }
+    remTracker(i);
 }
 bool AnnotateProcess::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
 {
@@ -225,6 +226,7 @@ void AnnotateProcess::helpHUD(Mat &image)
 
     int margin = 10;
     int fsize  = 20;
+    int characterWidth  = 20;
 
     if (mode == AXIS_RECT)
         ss << "Axis Align Rectangle ";
@@ -243,14 +245,15 @@ void AnnotateProcess::helpHUD(Mat &image)
     help.push_back(" (h) : Toggle this help ");
     help.push_back(" (n) : Next frame");
     help.push_back(" (a) : Accept annotation");
+    help.push_back(" (d) : Delete annotation");
     help.push_back(" (b) : Remove last point");
-    help.push_back(" (c) : Clear all points");
+    help.push_back(" (c) : Clear all annotations");
     help.push_back(" (SPACE) : Pause/play video");
     help.push_back(" (SHIFT + Click) : Select Polygon");
     help.push_back(" (ESC) : Exit Annotate");
 
 
-    Rect region(margin, margin, help.size() * fsize + margin,
+    Rect region(0, 0, characterWidth * fsize + margin,
                 help.size() * fsize + margin);
     region &= Rect(0,0, image.cols, image.rows);
 

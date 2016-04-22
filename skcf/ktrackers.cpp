@@ -120,15 +120,15 @@ void KTrackers::processFrame(const cv::Mat &frame)
             }
         }
         KTrackers::fastDetection(_target.model_alphaf, kzf, shift);
-        Point2f _shift(_params.cell_size * Point2f(shift.x, shift.y));
+        _shift = Point2f(_params.cell_size * Point2f(shift.x, shift.y));
         _target.center = _target.center + _shift;
         
         if (_params.scale)
         {
             _flow.processFrame(patch, filter, _target.size, _shift);
-            double scale = _flow.getScale();
-            _target.size = Size2d(min((double)_target.windowSize.width, (_target.size.width * scale)),
-                                  min((double)_target.windowSize.height,(_target.size.height * scale)));
+            _scale = _flow.getScale();
+            _target.size = Size2d(min((double)_target.windowSize.width, (_target.size.width * _scale)),
+                                  min((double)_target.windowSize.height,(_target.size.height * _scale)));
         }
         
         
@@ -199,7 +199,7 @@ void KTrackers::processFrame(const cv::Mat &frame)
 }
 
 KTrackers::KTrackers(KType type, KFeat feat, bool scale):
-_target(), _params(type, scale),  _ptl(0.,0.)
+_target(), _params(type, scale),  _ptl(0.,0.), _shift(0.,0.), _scale(1.0)
 {
     
     switch (feat) {

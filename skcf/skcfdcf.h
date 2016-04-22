@@ -68,6 +68,12 @@ public:
         kcf.getTrackedArea(pts);
         
     }
+
+    void getTransformation(Point2f &shift, float &scale)
+    {
+        shift = kcf.getShift();
+        scale = kcf.getScale();
+    }
     
     //@Override
     void processFrame(const cv::Mat &frame)
