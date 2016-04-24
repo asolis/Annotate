@@ -110,10 +110,12 @@ private:
     Point2f mouseShift;
     int thickness;
     int mode;
+    int selection;
     float ratio;
     bool showHelp;
     bool continuity;
     bool tracking;
+
 
 public:
 
@@ -148,6 +150,7 @@ public:
                       mouseShift(-1,-1),
                       thickness(2),
                       mode(method),
+                      selection(-1),
                       ratio(ratioYX),
                       showHelp(true),
                       continuity(cont),
@@ -295,9 +298,12 @@ public:
         if  (flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY)
         {
             mouseShift = Point2f(x,y);
-            int found = findIndexOfPolygonContainingPt(mouseShift);
-            if (found >= 0)
-                swapPolygon(found);
+            selection = findIndexOfPolygonContainingPt(mouseShift);
+            if (selection >= 0)
+            {
+                drawing.clear();
+                swapPolygon(selection);
+            }
 
         }
         else
@@ -410,7 +416,8 @@ public:
 
         if (key == 'd' || key == 'D')
         {
-            drawing.clear();
+            remAnnotation();
+            //drawing.clear();
         }
 
         if (key == 'a' || key == 'A')
@@ -442,7 +449,15 @@ public:
             area.width -= 1;
             area.height -= 1;
             tmp->initialize(currentFrame,area);
-            trackers.push_back(tmp);
+
+            if (selection < 0)
+            {
+                trackers.push_back(tmp);
+            }
+            else if (selection >= 0 && selection < trackers.size())
+            {
+                trackers[selection] = tmp;
+            }
         }
     }
     virtual void remTracker(int i)
@@ -453,16 +468,35 @@ public:
         }
     }
 
+    virtual void remAnnotation()
+    {
+        if (selection >= 0 && selection < annotations[currentFrameN].size())
+        {
+            annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
+            modes[currentFrameN].erase(modes[currentFrameN].begin() + selection);
+            trackers.erase(trackers.begin() + selection);
+        }
+        drawing.clear();
+        selection = -1;
+    }
+
     virtual void newAnnotation()
     {
         if (acceptPolygon(drawing, mode))
         {
-            annotations[currentFrameN].push_back(drawing);
-            modes[currentFrameN].push_back(mode);
-
+            if (selection < 0)
+            {
+                annotations[currentFrameN].push_back(drawing);
+                modes[currentFrameN].push_back(mode);
+            }
+            else if (selection >= 0 && selection < annotations[currentFrameN].size() )
+            {
+                annotations[currentFrameN][selection] = drawing;
+                modes[currentFrameN][selection] = mode;
+            }
             newTracker();
-
             drawing.clear();
+            selection = -1;
         }
     }
 

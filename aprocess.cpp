@@ -121,20 +121,8 @@ bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 }
 void AnnotateProcess::swapPolygon(int i)
 {
-    if (acceptPolygon(drawing, mode))
-    {
-        swap(drawing, annotations[currentFrameN][i]);
-        swap(mode, modes[currentFrameN][i]);
-    }
-    else
-    {
-        //switch drawing polygon and mode
-        drawing = annotations[currentFrameN][i];
-        mode = modes[currentFrameN][i];
-        annotations[currentFrameN].erase(annotations[currentFrameN].begin() + i);
-        modes[currentFrameN].erase(modes[currentFrameN].begin() + i);
-    }
-    remTracker(i);
+    swap(drawing, annotations[currentFrameN][i]);
+    swap(mode, modes[currentFrameN][i]);
 }
 bool AnnotateProcess::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
 {
