@@ -252,7 +252,7 @@ void AnnotateProcess::helpHUD(Mat &image)
     help.push_back(" (n) : Next frame");
     help.push_back(" (a) : Accept annotation");
     help.push_back(" (d) : Delete annotation");
-    help.push_back(" (b) : Remove last point");
+    help.push_back(" (b) : Remove last point/annotation");
     help.push_back(" (c) : Clear all annotations");
     help.push_back(" (SPACE) : Pause/play video");
     help.push_back(" (SHIFT + Click) : Select Polygon");

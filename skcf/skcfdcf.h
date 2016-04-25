@@ -33,7 +33,7 @@ public:
             KFeat feat = KFeat::FHOG ,
             bool scale = false): kcf(type, feat, scale){}
     
-	~SKCFDCF(void)
+	virtual ~SKCFDCF(void)
 	{
 	}
 
