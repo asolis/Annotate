@@ -101,6 +101,37 @@ Ptr<Input> InputFactory::create(const string &sequence, const Size sz)
     return Ptr<Input>();
 }
 
+string  InputFactory::findInputGroundTruth(const string &sequence, const string &defaultname)
+{
+    string basename;
+    if (isVideoFile(sequence))
+    {
+        viva::Files::getBasename(sequence, basename);
+    }
+    if (isWebFile(sequence))
+    {
+        //TODO
+    }
+    if (isStringSequence(sequence))
+    {
+        viva::Files::getBasename(sequence, basename);
+    }
+    if (isCameraID(sequence))
+    {
+        //TODO
+    }
+
+    if (isFolderSequence(sequence))
+    {
+        if (sequence.back() != viva::Files::PATH_SEPARATOR.front())
+            basename = sequence + viva::Files::PATH_SEPARATOR;
+        else
+            basename = sequence;
+    }
+
+    return basename + defaultname;
+}
+
 
 float AnnotateProcess::closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
 {
@@ -144,7 +175,7 @@ Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Po
     return Point2f( -tmp.y, tmp.x);
 }
 
-void AnnotateProcess::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number)
+void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number)
 {
     if (pts.size() > 0)
     {
@@ -161,7 +192,7 @@ void AnnotateProcess::displayPolygonNumber(Mat &image, const vector<Point2f> &pt
                 FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
     }
 }
-void AnnotateProcess::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &color, bool close)
+void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &color, int thickness, bool close)
 {
     int i = 0;
     for ( i = 0; i < ((int)pts.size() - 1); i++)

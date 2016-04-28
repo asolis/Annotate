@@ -71,8 +71,21 @@ public:
     static bool isFolderSequence(const string &sequence);
     static bool isCameraID(const string &s);
     static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
+    static string  findInputGroundTruth(const string &sequence, const string &defaultname);
 };
 
+class Draw
+{
+public:
+    static void displayPolygon(Mat &image,
+                               const vector<Point2f> &pts,
+                               const Scalar &color = Color::red,
+                               int thickness = 2,
+                               bool close = true);
+    static void displayPolygonNumber(Mat &image,
+                              const vector<Point2f> &pts,
+                              int number);
+};
 
 class AnnotateProcess : public ProcessFrame
 {
@@ -83,13 +96,7 @@ private:
     bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
     int   findIndexOfPolygonContainingPt(const Point2f &pt);
     Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
-    void displayPolygonNumber(Mat &image,
-                              const vector<Point2f> &pts,
-                              int number);
-    void displayPolygon(Mat &image,
-                        const vector<Point2f> &pts,
-                        const Scalar &color = Color::red,
-                        bool close = true);
+
     void getRRect(const Point2f &mPos, float ratio,
                           Point2f &p1,
                           Point2f &p2,
@@ -125,6 +132,8 @@ public:
         ROTA_RECT,
         POLY
     };
+
+
 
     vector<vector<vector<Point2f>>> annotations;
     vector<vector<int>> modes;
@@ -218,11 +227,11 @@ public:
 
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
         {
-            displayPolygon(output, annotations[currentFrameN][i], Color::yellow, true);
-            displayPolygonNumber(output, annotations[currentFrameN][i], i + 1);
+            Draw::displayPolygon(output, annotations[currentFrameN][i], Color::yellow,thickness, true);
+            Draw::displayPolygonNumber(output, annotations[currentFrameN][i], i + 1);
         }
 
-        displayPolygon(output, drawing, Color::red, mode != POLY);
+        Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
 
 
         if (mode == POLY)
@@ -523,6 +532,45 @@ public:
             }
             file << endl;
         }
+    }
+
+    static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
+    {
+        ifstream file;
+        file.open(filename);
+        string line;
+        long lcount = 0;
+
+        _data.clear();
+        while (file)
+        {
+            if (!getline(file, line)) break;
+
+            istringstream streamline(line);
+            string annotation;
+
+            vector<vector<Point2f>> _line;
+            _data.push_back(_line);
+
+            while (getline(streamline, annotation, '|'))
+            {
+                istringstream streamannot(annotation);
+                vector<Point2f> pts;
+                string x, y;
+                while (getline(streamannot, x, ',') &&
+                       getline(streamannot, y, ',') )
+                {
+                    pts.push_back(Point2f(atof(x.c_str()),
+                                          atof(y.c_str())));
+                }
+                _data[lcount].push_back(pts);
+                streamannot.clear();
+            }
+            lcount++;
+            streamline.clear();
+            
+        }
+        file.close();
     }
 
 };
