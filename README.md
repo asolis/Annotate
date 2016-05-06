@@ -14,8 +14,6 @@ In general, any project where a polygonal representation of your target is neede
 help to create it. 
 
 The Annotate tool can also provide a prediction for target positions to help annotating large datasets. 
-Currently, it uses our [sKCF](https://github.com/asolis/vivaTracker) tracking algorithm to 
-predict the target's new location.  
 
  
 For more detailed information and examples of how to use reefer to the project's  [wiki](https://github.com/asolis/Annotate/wiki).
