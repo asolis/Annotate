@@ -57,8 +57,10 @@ bool InputFactory::isWebFile(const string &sequence)
 }
 bool InputFactory::isStringSequence(const string &sequence)
 {
-    char res0[sequence.length() * 2];
-    char res1[sequence.length() * 2];
+//    char res0[sequence.length() * 2];
+//    char res1[sequence.length() * 2];
+    char *res0 = new char[sequence.length() * 2];
+    char *res1 = new char[sequence.length() * 2];
     sprintf(res0, sequence.c_str(), 0);
     sprintf(res1, sequence.c_str(), 1);
     string path0(res0);
