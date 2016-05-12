@@ -38,11 +38,14 @@
 
 #include "viva.h"
 #include "skcfdcf.h"
+#include "rapidxml.hpp"
+#include "rapidxml_print.hpp"
 #include <iostream>
 #include <sstream>
 #include <fstream>
 
 using namespace viva;
+using namespace rapidxml;
 
 /**
  *  Color struct.
@@ -533,6 +536,55 @@ public:
             file << endl;
         }
     }
+
+	virtual void writeXMLAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
+	{
+		ofstream file;
+		file.open(filename);
+		// defaults type is char
+		xml_document<> doc;
+
+		for (size_t i = 0; i < annotations.size(); i++)
+		{
+			xml_node<> *node = doc.allocate_node(node_element, "frame");
+			doc.append_node(node);
+			// write the frame number
+			std::string frameNumber = std::to_string(i);
+			char *frameNumberChar = doc.allocate_string(frameNumber.c_str());
+			xml_attribute<> *attr = doc.allocate_attribute("frameNumber", frameNumberChar);
+			node->append_attribute(attr);
+
+			for (size_t j = 0; j < annotations[i].size(); j++)
+			{
+				xml_node<> *sub_node = doc.allocate_node(node_element, "box");
+				node->append_node(sub_node);
+
+				std::string boxNumber = std::to_string(j);
+				char *boxNumberChar = doc.allocate_string(boxNumber.c_str());
+				attr = doc.allocate_attribute("boxNumber", boxNumberChar);
+				sub_node->append_attribute(attr);
+
+				for (size_t k = 0; k < annotations[i][j].size(); k++)
+				{					
+					std::string pointNum = "pointNumber:";
+					pointNum += std::to_string(k);
+					char *pointNumChar = doc.allocate_string(pointNum.c_str());
+
+					std::string pointValue = std::to_string(annotations[i][j][k].x * scaleX);
+					pointValue += ",";
+					pointValue += std::to_string(annotations[i][j][k].y * scaleY);
+					char *pointValueChar = doc.allocate_string(pointValue.c_str());
+
+					attr = doc.allocate_attribute(pointNumChar, pointValueChar);
+					sub_node->append_attribute(attr);
+				}
+			}
+		}
+
+		// print out the xml document
+		file << doc;
+		file.close();
+	}
 
     static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
     {
