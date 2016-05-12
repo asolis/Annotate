@@ -57,6 +57,37 @@ namespace rapidxml
     //! \cond internal
     namespace internal
     {
+
+
+
+        //Declaring templates before using them.
+        //Solving Compile errors in Mac OSX: 2016 Andres Solis Montero.
+
+        // Print children of the node
+        template<class OutIt, class Ch>
+        inline OutIt print_children(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print element node
+        template<class OutIt, class Ch>
+        inline OutIt print_element_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print data node
+        template<class OutIt, class Ch>
+        inline OutIt print_data_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print data node
+        template<class OutIt, class Ch>
+        inline OutIt print_cdata_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print declaration node
+        template<class OutIt, class Ch>
+        inline OutIt print_declaration_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print comment node
+        template<class OutIt, class Ch>
+        inline OutIt print_comment_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print doctype node
+        template<class OutIt, class Ch>
+        inline OutIt print_doctype_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+        // Print pi node
+        template<class OutIt, class Ch>
+        inline OutIt print_pi_node(OutIt out, const xml_node<Ch> *node, int flags, int indent);
+
         
         ///////////////////////////////////////////////////////////////////////////
         // Internal character operations
@@ -128,9 +159,10 @@ namespace rapidxml
             return false;
         }
 
+
         ///////////////////////////////////////////////////////////////////////////
         // Internal printing operations
-    
+
         // Print node
         template<class OutIt, class Ch>
         inline OutIt print_node(OutIt out, const xml_node<Ch> *node, int flags, int indent)
