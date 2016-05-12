@@ -17,3 +17,9 @@ The Annotate tool can also provide a prediction for target positions to help ann
 
  
 For more detailed information and examples of how to use reefer to the project's  [wiki](https://github.com/asolis/Annotate/wiki).
+
+
+## Contributors 
+
+Thanks to:   
+1. Dongfeng Gu - Adding write/read support for simplified XML version of [viper](http://viper-toolkit.sourceforge.net/docs/file/) format. 
