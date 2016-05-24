@@ -39,14 +39,15 @@ using namespace viva;
 int main(int argc, const char * argv[])
 {
 
-    const String keys =
-    "{help h            |                | print this message}"
-    "{@sequence         |                | url, file, folder, sequence}"
-    "{g groundtruth     |                | ground truth filename }"
-    "{o output          |output          | folder name for output}"
-    "{p pattern         |%06d%03d.png    | output filename pattern}"
-    "{m masked          |                | masking output images if not axis align}"
-    "{s                 |                | start sequence paused}"
+	const String keys =
+		"{help h            |                | print this message}"
+		"{@sequence         |                | url, file, folder, sequence}"
+		"{g groundtruth     |                | ground truth filename }"
+		"{x xml groundtruth	|				 | xml ground truth filename}"
+		"{o output          |output          | folder name for output}"
+		"{p pattern         |%06d%03d.png    | output filename pattern}"
+		"{m masked          |                | masking output images if not axis align}"
+		"{s                 |                | start sequence paused}"
     ;
 
     CommandLineParser parser(argc, argv, keys);
@@ -62,15 +63,20 @@ int main(int argc, const char * argv[])
                                                           "groundtruth.txt");
 
     string gfile = parser.get<string>("g");
+	string xmlgfile = parser.get<string>("x");
 
-    if (viva::Files::isFile(fullname) && !parser.has("g"))
+    if (viva::Files::isFile(fullname) && !parser.has("g") && !parser.has("x"))
     {
         AnnotateProcess::parseAnnotations(fullname, _gtruth);
     }
     else if (parser.has("g") && viva::Files::isFile(gfile))
     {
         AnnotateProcess::parseAnnotations(gfile, _gtruth);
-    }
+    }	
+	else if (parser.has("x") && viva::Files::isFile(xmlgfile))
+	{
+		AnnotateProcess::parseXMLAnnotations(xmlgfile, _gtruth);
+	}
 
     string outputFolder = parser.get<string>("o");
     if (!viva::Files::isDir(outputFolder))

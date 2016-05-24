@@ -16,13 +16,16 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/skcf)
 
 FILE(GLOB files
   "*.h"
+  "*.hpp"
   "*.cpp"
 )
 FILE(GLOB proj_files
+	"*.hpp"
 	"main.cpp"
 	"aprocess.*"
 )
 FILE(GLOB tool_files
+	"*.hpp"
 	"aprocess.*"
 	"extract.cpp"
 )

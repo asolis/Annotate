@@ -36,7 +36,6 @@
 
 using namespace viva;
 
-
 int main(int argc, const char * argv[])
 {
 
@@ -49,6 +48,7 @@ int main(int argc, const char * argv[])
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
         "{t track           |e          | choices =  e | d | n  (i.e., enable, disable, and new). The 'e' enable option will generate a proposal position for next frame. Disable 'd' option will keep the same position from previous frame. New 'n' will clear the annotations from previous frame}"
         "{o output          |           | filename for annnotation results}"
+		"{ox output XML		|			| filename for xml file annotation results}"
 
     ;
 
@@ -86,16 +86,24 @@ int main(int argc, const char * argv[])
     processor.listenToKeyboardEvents();
     processor.run();
 
+
+	Size org = input->getOrgSize();
+	Size cur = Size(input->getWidth(), input->getHeight());
     if (parser.has("o"))
-    {
-        Size org = input->getOrgSize();
-        Size cur = Size(input->getWidth(), input->getHeight());
-        
+    {        
         string annotations = parser.get<string>("o");
         process->writeAnnotations(annotations,
                                   (float)org.width/(float)cur.width,
                                   (float)org.height/(float)cur.height);
     }
+
+	if (parser.has("ox"))
+	{
+		string annotations = parser.get<string>("ox");
+		process->writeXMLAnnotations(annotations,
+			(float)org.width / (float)cur.width,
+			(float)org.height / (float)cur.height);
+	}
 
     return 0;
 }
