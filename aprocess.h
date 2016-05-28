@@ -87,7 +87,8 @@ public:
                                bool close = true);
     static void displayPolygonNumber(Mat &image,
                               const vector<Point2f> &pts,
-                              int number);
+                              int number,
+							  string actionType);
 };
 
 class AnnotateProcess : public ProcessFrame
@@ -122,6 +123,7 @@ private:
     int thickness;
     int mode;
     int selection;
+	int currentActionType;
     float ratio;
     bool showHelp;
 	bool showActionHelp;
@@ -138,8 +140,19 @@ public:
         POLY
     };
 
+	// Define the action type 
+	enum ACTION
+	{
+		NOTHING,
+		ORDERING, 
+		WAITING,
+		PICKING,
+		LEAVING
+	};
+
     vector<vector<vector<Point2f>>> annotations;
     vector<vector<int>> modes;
+	vector<vector<int>> actionTypes;
 	
     vector<Point2f> drawing;
 
@@ -171,9 +184,11 @@ public:
                       tracking(track),
                       annotations(),
                       modes(),
+					  actionTypes(),
                       drawing(),
                       trackers(),
-                      currentFrame()
+                      currentFrame(),
+					  currentActionType(ACTION::NOTHING)
     {}
 
 
@@ -186,6 +201,7 @@ public:
 			{
 				annotations.push_back(annotations[annotations.size() - 1]);
 				modes.push_back(modes[modes.size() - 1]);
+				actionTypes.push_back(actionTypes[actionTypes.size() - 1]);
 			}
 			/** create new set of empty annotations for the current frame**/
 			else
@@ -195,6 +211,9 @@ public:
 
 				vector<int> tmp2;
 				modes.push_back(tmp2);
+
+				vector<int> tmp3;
+				actionTypes.push_back(tmp3);
 
 				trackers.clear();
 			}
@@ -236,7 +255,9 @@ public:
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
         {
             Draw::displayPolygon(output, annotations[currentFrameN][i], Color::yellow,thickness, true);
-            Draw::displayPolygonNumber(output, annotations[currentFrameN][i], i + 1);
+			string actionType;
+			getActionStringFromIndex(actionTypes[currentFrameN][i], actionType);
+            Draw::displayPolygonNumber(output, annotations[currentFrameN][i], i + 1, actionType);
         }
 
         Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
@@ -461,6 +482,26 @@ public:
 			// add the action annotation code
 			showActionHelp = !showActionHelp;
 		}
+
+		// handle the action type selection
+		switch (key)
+		{
+		case '0' + ACTION::NOTHING :
+			currentActionType = ACTION::NOTHING;
+			break;
+		case '0' + ACTION::ORDERING:
+			currentActionType = ACTION::ORDERING;
+			break;
+		case '0' + ACTION::WAITING:
+			currentActionType = ACTION::WAITING;
+			break;
+		case '0' + ACTION::PICKING:
+			currentActionType = ACTION::PICKING;
+			break;
+		case '0' + ACTION::LEAVING:
+			currentActionType = ACTION::LEAVING;
+			break;
+		}
     };
 
     virtual void newTracker()
@@ -483,6 +524,7 @@ public:
             }
         }
     }
+
     virtual void remTracker(int i)
     {
         if (tracking && i >= 0 && i < trackers.size())
@@ -497,6 +539,7 @@ public:
         {
             annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
             modes[currentFrameN].erase(modes[currentFrameN].begin() + selection);
+			actionTypes[currentFrameN].erase(actionTypes[currentFrameN].begin() + selection);
             trackers.erase(trackers.begin() + selection);
         }
         drawing.clear();
@@ -511,15 +554,18 @@ public:
             {
                 annotations[currentFrameN].push_back(drawing);
                 modes[currentFrameN].push_back(mode);
+				actionTypes[currentFrameN].push_back(currentActionType);
             }
             else if (selection >= 0 && selection < annotations[currentFrameN].size() )
             {
                 annotations[currentFrameN][selection] = drawing;
                 modes[currentFrameN][selection] = mode;
+				actionTypes[currentFrameN].push_back(currentActionType);
             }
             newTracker();
             drawing.clear();
             selection = -1;
+			//currentActionType = ACTION::NOTHING;
         }
     }
 
@@ -597,7 +643,28 @@ public:
 		file.close();
 	}
 
-    static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
+	virtual void getActionStringFromIndex(int actionIndex, string &actionType) {
+		switch (actionIndex)
+		{
+		case ACTION::NOTHING:
+			actionType = "nothing";
+			break;
+		case ACTION::LEAVING:
+			actionType = "leaving";
+			break;
+		case ACTION::PICKING:
+			actionType = "picking";
+			break;
+		case ACTION::WAITING:
+			actionType = "waiting";
+			break;
+		case ACTION::ORDERING:
+			actionType = "ordering";
+			break;
+		}
+	}
+
+	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
     {
         ifstream file;
         file.open(filename);

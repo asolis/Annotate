@@ -177,7 +177,7 @@ Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Po
     return Point2f( -tmp.y, tmp.x);
 }
 
-void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number)
+void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number, string actionType)
 {
     if (pts.size() > 0)
     {
@@ -188,9 +188,14 @@ void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int numb
                                   });
 
         rectangle(image, *ref - Point2f(0,10),
-                         *ref + Point2f(15,0),
+                         *ref + Point2f(70,0),
                         Color::yellow, -1);
-        putText(image, to_string(number), *ref - Point2f(0,2),
+
+		string display = "";
+		display += to_string(number);
+		display += " - ";
+		display += actionType;
+        putText(image, display, *ref - Point2f(0,2),
                 FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
     }
 }
@@ -311,15 +316,11 @@ void AnnotateProcess::helpHUD(Mat &image)
 
 void AnnotateProcess::helpActionHUB(Mat &image) 
 {
-	std::stringstream ss;
-	ss << "Action Class List: ";
-
 	int margin = 10;
 	int fsize = 15;
 	int characterWidth = 10;
 
 	vector<string> help;
-	help.push_back(ss.str());
 	help.push_back(" (0) : Nothing");
 	help.push_back(" (1) : Ordering");
 	help.push_back(" (2) : Picking");
@@ -340,8 +341,17 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 
 	for (size_t i = 0, h = fsize; i < help.size(); i++, h += fsize)
 	{
-		putText(image, help[i], Point(fsize + coordinateX, h + coordinateY),
-			FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+		if (currentActionType == i)
+		{
+			putText(image, help[i], Point(fsize + coordinateX, h + coordinateY),
+				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
+		}
+		else
+		{
+			putText(image, help[i], Point(fsize + coordinateX, h + coordinateY),
+				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+		}
+		
 	}
 }
 
