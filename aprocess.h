@@ -111,6 +111,7 @@ private:
                           Point2f &p3,
                   Point2f &p4);
     void helpHUD(Mat &image);
+	void helpActionHUB(Mat &image);
 
     Point2f centroid(const vector<Point2f> &corners);
 
@@ -123,6 +124,7 @@ private:
     int selection;
     float ratio;
     bool showHelp;
+	bool showActionHelp;
     bool continuity;
     bool tracking;
 
@@ -136,10 +138,9 @@ public:
         POLY
     };
 
-
-
     vector<vector<vector<Point2f>>> annotations;
     vector<vector<int>> modes;
+	
     vector<Point2f> drawing;
 
     vector<Ptr<SKCFDCF>> trackers;
@@ -165,6 +166,7 @@ public:
                       selection(-1),
                       ratio(ratioYX),
                       showHelp(true),
+					  showActionHelp(true),
                       continuity(cont),
                       tracking(track),
                       annotations(),
@@ -175,59 +177,62 @@ public:
     {}
 
 
-    virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
-    {
-        if (currentFrameN != frameN)
-        {
-            /** copy annotations from previous frame to current frame**/
-            if ((continuity || tracking) && frameN > 0)
-            {
-                annotations.push_back(annotations[annotations.size() - 1]);
-                modes.push_back(modes[modes.size() - 1]);
-            }
-            /** create new set of empty annotations for the current frame**/
-            else
-            {
-                vector<vector<Point2f>> tmp;
-                annotations.push_back(tmp);
+	virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
+	{
+		if (currentFrameN != frameN)
+		{
+			/** copy annotations from previous frame to current frame**/
+			if ((continuity || tracking) && frameN > 0)
+			{
+				annotations.push_back(annotations[annotations.size() - 1]);
+				modes.push_back(modes[modes.size() - 1]);
+			}
+			/** create new set of empty annotations for the current frame**/
+			else
+			{
+				vector<vector<Point2f>> tmp;
+				annotations.push_back(tmp);
 
-                vector<int> tmp2;
-                modes.push_back(tmp2);
+				vector<int> tmp2;
+				modes.push_back(tmp2);
 
-                trackers.clear();
-            }
+				trackers.clear();
+			}
 
-            currentFrameN = frameN;
-            frame.copyTo(currentFrame);
-
-
-            /** if tracking is selected, propose a new position for the previous
-                frame annotations **/
-
-            if (tracking)
-            {
-                for (size_t i = 0; i < trackers.size(); i++)
-                {
-                    trackers[i]->processFrame(frame);
-                    Point2f deltha;
-                    float scale;
-                    trackers[i]->getTransformation(deltha, scale);
-
-                    for (size_t p = 0; p < annotations[currentFrameN][i].size(); p++)
-                    {
-                        annotations[currentFrameN][i][p] += deltha;
-                    }
-                }
-            }
+			currentFrameN = frameN;
+			frame.copyTo(currentFrame);
 
 
-        }
+			/** if tracking is selected, propose a new position for the previous
+				frame annotations **/
 
-        frame.copyTo(output);
+			if (tracking)
+			{
+				for (size_t i = 0; i < trackers.size(); i++)
+				{
+					trackers[i]->processFrame(frame);
+					Point2f deltha;
+					float scale;
+					trackers[i]->getTransformation(deltha, scale);
 
-        if (showHelp)
-            helpHUD(output);
+					for (size_t p = 0; p < annotations[currentFrameN][i].size(); p++)
+					{
+						annotations[currentFrameN][i][p] += deltha;
+					}
+				}
+			}
 
+
+		}
+
+		frame.copyTo(output);
+
+		if (showHelp)
+			helpHUD(output);
+
+		if(showActionHelp)
+			helpActionHUB(output);
+            
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
         {
             Draw::displayPolygon(output, annotations[currentFrameN][i], Color::yellow,thickness, true);
@@ -450,6 +455,12 @@ public:
         {
             ratio += .1;
         }
+
+		if (key == 'l' || key == 'L')
+		{
+			// add the action annotation code
+			showActionHelp = !showActionHelp;
+		}
     };
 
     virtual void newTracker()

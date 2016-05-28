@@ -283,6 +283,7 @@ void AnnotateProcess::helpHUD(Mat &image)
     help.push_back(" (+) : Increase ratio 0.1");
     help.push_back(" (h) : Toggle this help ");
     help.push_back(" (n) : Next frame");
+	help.push_back(" (l) : Get the action class list");
     help.push_back(" (a) : Accept annotation");
     help.push_back(" (d) : Delete annotation");
     help.push_back(" (b) : Remove last point/annotation");
@@ -307,6 +308,43 @@ void AnnotateProcess::helpHUD(Mat &image)
     }
 
 }
+
+void AnnotateProcess::helpActionHUB(Mat &image) 
+{
+	std::stringstream ss;
+	ss << "Action Class List: ";
+
+	int margin = 10;
+	int fsize = 15;
+	int characterWidth = 10;
+
+	vector<string> help;
+	help.push_back(ss.str());
+	help.push_back(" (0) : Nothing");
+	help.push_back(" (1) : Ordering");
+	help.push_back(" (2) : Picking");
+	help.push_back(" (3) : Waiting");
+	help.push_back(" (4) : Leaving");
+
+	int coordinateX = image.cols - (characterWidth * fsize + margin);
+	int coordinateY = image.rows - (help.size() * fsize + margin);
+
+	Rect region(coordinateX, coordinateY,  
+		characterWidth * fsize + margin,
+		help.size() * fsize + margin);
+	region &= Rect(0, 0, image.cols, image.rows);
+
+	GaussianBlur(image(region),
+		image(region),
+		Size(0, 0), 5);
+
+	for (size_t i = 0, h = fsize; i < help.size(); i++, h += fsize)
+	{
+		putText(image, help[i], Point(fsize + coordinateX, h + coordinateY),
+			FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+	}
+}
+
 Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
 {
     Moments mu = moments(corners);
