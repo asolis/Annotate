@@ -85,10 +85,17 @@ public:
                                const Scalar &color = Color::red,
                                int thickness = 2,
                                bool close = true);
-    static void displayPolygonNumber(Mat &image,
+    static void displayPolygonNumberNAction(Mat &image,
                               const vector<Point2f> &pts,
                               int number,
 							  string actionType);
+};
+
+struct Annotation
+{
+	vector<Point2f> annotateFrame;
+	int mode;
+	int actionType;
 };
 
 class AnnotateProcess : public ProcessFrame
@@ -150,9 +157,7 @@ public:
 		LEAVING
 	};
 
-    vector<vector<vector<Point2f>>> annotations;
-    vector<vector<int>> modes;
-	vector<vector<int>> actionTypes;
+	vector<vector<Annotation>> annotations;
 	
     vector<Point2f> drawing;
 
@@ -183,8 +188,6 @@ public:
                       continuity(cont),
                       tracking(track),
                       annotations(),
-                      modes(),
-					  actionTypes(),
                       drawing(),
                       trackers(),
                       currentFrame(),
@@ -200,20 +203,12 @@ public:
 			if ((continuity || tracking) && frameN > 0)
 			{
 				annotations.push_back(annotations[annotations.size() - 1]);
-				modes.push_back(modes[modes.size() - 1]);
-				actionTypes.push_back(actionTypes[actionTypes.size() - 1]);
 			}
 			/** create new set of empty annotations for the current frame**/
 			else
 			{
-				vector<vector<Point2f>> tmp;
+				vector<Annotation> tmp;
 				annotations.push_back(tmp);
-
-				vector<int> tmp2;
-				modes.push_back(tmp2);
-
-				vector<int> tmp3;
-				actionTypes.push_back(tmp3);
 
 				trackers.clear();
 			}
@@ -234,9 +229,9 @@ public:
 					float scale;
 					trackers[i]->getTransformation(deltha, scale);
 
-					for (size_t p = 0; p < annotations[currentFrameN][i].size(); p++)
+					for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
 					{
-						annotations[currentFrameN][i][p] += deltha;
+						annotations[currentFrameN][i].annotateFrame[p] += deltha;
 					}
 				}
 			}
@@ -254,10 +249,10 @@ public:
             
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
         {
-            Draw::displayPolygon(output, annotations[currentFrameN][i], Color::yellow,thickness, true);
-			string actionType;
-			getActionStringFromIndex(actionTypes[currentFrameN][i], actionType);
-            Draw::displayPolygonNumber(output, annotations[currentFrameN][i], i + 1, actionType);
+            Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow,thickness, true);
+			string actionTypeString;
+			getActionStringFromIndex(annotations[currentFrameN][i].actionType, actionTypeString);
+            Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame, i + 1, actionTypeString);
         }
 
         Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
@@ -424,7 +419,7 @@ public:
                 if (!annotations[currentFrameN].empty())
                 {
                     annotations[currentFrameN].pop_back();
-                    if (tracking && !trackers.empty())
+					if (tracking && !trackers.empty())
                         trackers.pop_back();
                 }
             }
@@ -437,12 +432,16 @@ public:
             {
                 drawing.pop_back();
             }
-            if (!drawing.empty())
-                drawing.pop_back();
+			if (!drawing.empty())
+			{
+				drawing.pop_back();
+			}
+                
         }
         if (key == 'c' || key == 'C')
         {
             drawing.clear();
+
             while (!annotations[currentFrameN].empty())
                 annotations[currentFrameN].pop_back();
 
@@ -538,8 +537,6 @@ public:
         if (selection >= 0 && selection < annotations[currentFrameN].size())
         {
             annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
-            modes[currentFrameN].erase(modes[currentFrameN].begin() + selection);
-			actionTypes[currentFrameN].erase(actionTypes[currentFrameN].begin() + selection);
             trackers.erase(trackers.begin() + selection);
         }
         drawing.clear();
@@ -550,17 +547,20 @@ public:
     {
         if (acceptPolygon(drawing, mode))
         {
+			Annotation tmp;
             if (selection < 0)
             {
-                annotations[currentFrameN].push_back(drawing);
-                modes[currentFrameN].push_back(mode);
-				actionTypes[currentFrameN].push_back(currentActionType);
+				tmp.annotateFrame = drawing;
+				tmp.mode = mode;
+				tmp.actionType = currentActionType;
+
+                annotations[currentFrameN].push_back(tmp);
             }
             else if (selection >= 0 && selection < annotations[currentFrameN].size() )
             {
-                annotations[currentFrameN][selection] = drawing;
-                modes[currentFrameN][selection] = mode;
-				actionTypes[currentFrameN].push_back(currentActionType);
+                annotations[currentFrameN][selection].annotateFrame = drawing;
+				annotations[currentFrameN][selection].mode = mode;
+				annotations[currentFrameN][selection].actionType = currentActionType;
             }
             newTracker();
             drawing.clear();
@@ -578,13 +578,13 @@ public:
 
             for (size_t j = 0; j < annotations[i].size(); j++)
             {
-                for (size_t k = 0; k < annotations[i][j].size(); k++)
+                for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
                 {
 
-                    file << annotations[i][j][k].x * scaleX << ", "
-                         << annotations[i][j][k].y * scaleY;
+                    file << annotations[i][j].annotateFrame[k].x * scaleX << ", "
+                         << annotations[i][j].annotateFrame[k].y * scaleY;
                     
-                    if ( k != (annotations[i][j].size() - 1))
+                    if ( k != (annotations[i][j].annotateFrame.size() - 1))
                         file << ", ";
                 }
                 if ( j != (annotations[i].size() - 1))
@@ -621,15 +621,15 @@ public:
 				attr = doc.allocate_attribute("boxNumber", boxNumberChar);
 				sub_node->append_attribute(attr);
 
-				for (size_t k = 0; k < annotations[i][j].size(); k++)
+				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
 				{					
 					std::string pointNum = "pointNumber:";
 					pointNum += std::to_string(k);
 					char *pointNumChar = doc.allocate_string(pointNum.c_str());
 
-					std::string pointValue = std::to_string(annotations[i][j][k].x * scaleX);
+					std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
 					pointValue += ",";
-					pointValue += std::to_string(annotations[i][j][k].y * scaleY);
+					pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
 					char *pointValueChar = doc.allocate_string(pointValue.c_str());
 
 					attr = doc.allocate_attribute(pointNumChar, pointValueChar);

@@ -154,8 +154,9 @@ bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 }
 void AnnotateProcess::swapPolygon(int i)
 {
-    swap(drawing, annotations[currentFrameN][i]);
-    swap(mode, modes[currentFrameN][i]);
+	swap(drawing, annotations[currentFrameN][i].annotateFrame);
+	swap(mode, annotations[currentFrameN][i].mode);
+	swap(currentActionType, annotations[currentFrameN][i].actionType);
 }
 bool AnnotateProcess::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
 {
@@ -166,7 +167,7 @@ int AnnotateProcess::findIndexOfPolygonContainingPt(const Point2f &pt)
     int found = -1;
     for ( size_t i = 0; i < annotations[currentFrameN].size(); i++)
     {
-        if (ptInsidePolygon(pt, annotations[currentFrameN][i]))
+        if (ptInsidePolygon(pt, annotations[currentFrameN][i].annotateFrame))
             return i;
     }
     return found;
@@ -177,7 +178,7 @@ Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Po
     return Point2f( -tmp.y, tmp.x);
 }
 
-void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number, string actionType)
+void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, int number, string actionType)
 {
     if (pts.size() > 0)
     {
@@ -211,6 +212,7 @@ void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &
         line(image, pts[i], pts[0],
              color, thickness, CV_AA );
 }
+
 void AnnotateProcess::getRRect(const Point2f &mPos, float ratio,
               Point2f &p1,
               Point2f &p2,
@@ -323,8 +325,8 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 	vector<string> help;
 	help.push_back(" (0) : Nothing");
 	help.push_back(" (1) : Ordering");
-	help.push_back(" (2) : Picking");
-	help.push_back(" (3) : Waiting");
+	help.push_back(" (2) : Waiting");
+	help.push_back(" (3) : Picking");
 	help.push_back(" (4) : Leaving");
 
 	int coordinateX = image.cols - (characterWidth * fsize + margin);
