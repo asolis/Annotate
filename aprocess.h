@@ -598,7 +598,6 @@ public:
 	{
 		ofstream file;
 		file.open(filename);
-		// defaults type is char
 		xml_document<> doc;
 
 		for (size_t i = 0; i < annotations.size(); i++)
@@ -606,21 +605,21 @@ public:
 			xml_node<> *node = doc.allocate_node(node_element, "frame");
 			doc.append_node(node);
 			// write the frame number
-			std::string frameNumber = std::to_string(i);
-			char *frameNumberChar = doc.allocate_string(frameNumber.c_str());
-			xml_attribute<> *attr = doc.allocate_attribute("frameNumber", frameNumberChar);
-			node->append_attribute(attr);
-
+			allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
+			
 			for (size_t j = 0; j < annotations[i].size(); j++)
 			{
 				xml_node<> *sub_node = doc.allocate_node(node_element, "box");
 				node->append_node(sub_node);
 
-				std::string boxNumber = std::to_string(j);
-				char *boxNumberChar = doc.allocate_string(boxNumber.c_str());
-				attr = doc.allocate_attribute("boxNumber", boxNumberChar);
-				sub_node->append_attribute(attr);
-
+				// add the box number of one frame
+				allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
+				
+				std::string actionType;
+				getActionStringFromIndex(annotations[i][j].actionType, actionType);
+				// add the action type for this box
+				allocateAttrToNodeXML(doc, sub_node, "actionType", actionType);
+				
 				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
 				{					
 					std::string pointNum = "pointNumber:";
@@ -630,10 +629,9 @@ public:
 					std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
 					pointValue += ",";
 					pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
-					char *pointValueChar = doc.allocate_string(pointValue.c_str());
-
-					attr = doc.allocate_attribute(pointNumChar, pointValueChar);
-					sub_node->append_attribute(attr);
+					
+					// add the pointNumber information
+					allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
 				}
 			}
 		}
@@ -641,6 +639,14 @@ public:
 		// print out the xml document
 		file << doc;
 		file.close();
+	}
+
+	virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value)
+	{
+		// convert string to char
+		char *CharTmp = doc.allocate_string(value.c_str());
+		xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
+		node->append_attribute(attr);
 	}
 
 	virtual void getActionStringFromIndex(int actionIndex, string &actionType) {
