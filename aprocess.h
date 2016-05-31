@@ -85,6 +85,9 @@ public:
                                const Scalar &color = Color::red,
                                int thickness = 2,
                                bool close = true);
+	static void displayPolygonNumber(Mat &image,
+							  const vector<Point2f> &pts,
+							  int number);
     static void displayPolygonNumberNAction(Mat &image,
                               const vector<Point2f> &pts,
                               int number,
@@ -600,10 +603,20 @@ public:
 		file.open(filename);
 		xml_document<> doc;
 
+		// add the xml declaration
+		xml_node<>* decl = doc.allocate_node(node_declaration);
+		decl->append_attribute(doc.allocate_attribute("version", "1.0"));
+		decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+		doc.append_node(decl);
+
+		// create the root node
+		xml_node<>* root = doc.allocate_node(node_element, "video");
+		doc.append_node(root);
+
 		for (size_t i = 0; i < annotations.size(); i++)
 		{
 			xml_node<> *node = doc.allocate_node(node_element, "frame");
-			doc.append_node(node);
+			root->append_node(node);
 			// write the frame number
 			allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
 			
@@ -622,7 +635,7 @@ public:
 				
 				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
 				{					
-					std::string pointNum = "pointNumber:";
+					std::string pointNum = "pointNumber";
 					pointNum += std::to_string(k);
 					char *pointNumChar = doc.allocate_string(pointNum.c_str());
 
@@ -722,13 +735,16 @@ public:
 		xml_copy.push_back('\0');
 
 		xml_document<> doc;
-		doc.parse<parse_declaration_node | parse_no_data_nodes>(&xml_copy[0]);
+		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
 
 		long lcount = 0;
 		_data.clear();
 		
+		// parse the root node
+		xml_node<>* cur_node = doc.first_node("video");
+
 		// frame loop
-		for (xml_node<> *frame_node = doc.first_node(); frame_node; frame_node = frame_node->next_sibling())
+		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
 		{
 			vector<vector<Point2f>> _line;
 			_data.push_back(_line);
@@ -738,7 +754,9 @@ public:
 				vector<Point2f> pts;
 				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
 				{
-					if (strcmp(point->name(), "boxNumber") == 0) { continue; }
+					//if (strcmp(point->name(), "boxNumber") == 0) { continue; }
+					std::string tmp(point->name());
+					if (tmp.find("pointNumber") == string::npos) { continue; }
 					char *value = point->value();
 					// parse the value
 					char value_array[50];

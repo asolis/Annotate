@@ -178,6 +178,27 @@ Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Po
     return Point2f( -tmp.y, tmp.x);
 }
 
+void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number)
+{
+	if (pts.size() > 0)
+	{
+		auto ref = std::min_element(pts.begin(), pts.end(),
+			[](const Point2f &p1, const Point2f &p2)
+		{
+			return p1.y < p2.y;
+		});
+
+		rectangle(image, *ref - Point2f(0, 10),
+			*ref + Point2f(70, 0),
+			Color::yellow, -1);
+
+		string display = "";
+		display += to_string(number);
+		putText(image, display, *ref - Point2f(0, 2),
+			FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
+	}
+}
+
 void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, int number, string actionType)
 {
     if (pts.size() > 0)
