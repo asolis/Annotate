@@ -187,7 +187,7 @@ public:
                       selection(-1),
                       ratio(ratioYX),
                       showHelp(true),
-					  showActionHelp(true),
+					  showActionHelp(false),
                       continuity(cont),
                       tracking(track),
                       annotations(),
@@ -451,9 +451,12 @@ public:
             if (tracking)
                 trackers.clear();
         }
-        if (key == 'h' || key == 'H')
-            showHelp = !showHelp;
-
+		if (key == 'h' || key == 'H')
+		{
+			showHelp = !showHelp;
+			showActionHelp = false;
+		}
+            
         if (key == 'd' || key == 'D')
         {
             remAnnotation();
@@ -483,6 +486,7 @@ public:
 		{
 			// add the action annotation code
 			showActionHelp = !showActionHelp;
+			showHelp = false;
 		}
 
 		// handle the action type selection

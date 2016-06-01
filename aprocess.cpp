@@ -350,6 +350,28 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 	help.push_back(" (3) : Picking");
 	help.push_back(" (4) : Leaving");
 
+	Rect region(0, 0, characterWidth * fsize + margin,
+		help.size() * fsize + margin);
+	region &= Rect(0, 0, image.cols, image.rows);
+
+	GaussianBlur(image(region),
+		image(region),
+		Size(0, 0), 5);
+
+	for (size_t i = 0, h = fsize; i < help.size(); i++, h += fsize)
+	{
+		if (currentActionType == i)
+		{
+			putText(image, help[i], Point(fsize, h),
+				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
+		}
+		else
+		{
+			putText(image, help[i], Point(fsize, h),
+				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+		}
+	}
+	/*
 	int coordinateX = image.cols - (characterWidth * fsize + margin);
 	int coordinateY = image.rows - (help.size() * fsize + margin);
 
@@ -376,6 +398,7 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 		}
 		
 	}
+	*/
 }
 
 Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
