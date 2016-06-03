@@ -77,7 +77,7 @@ int main(int argc, const char * argv[])
                 new AnnotateProcess(parser.get<float>("r"),
                                     method, continuity, tracking);
 
-    Processor processor;
+    SeekProcessor processor;
     processor.setInput(input);
     Ptr<ProcessFrame> proc = process;
     processor.setProcess(proc);

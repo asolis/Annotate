@@ -224,6 +224,59 @@ namespace viva
     
 
     };
+
+	/**
+	* ImageListSeekInput to process folder containing images of
+	* supported OpenCV formats. 
+	* We can seek for specify frame and do the operation
+	*/
+	class ImageListSeekInput : public Input
+	{
+	private:
+		vector<string>    _filenames;
+		vector<string>::iterator _it;
+		int _loops;
+		bool _opened;
+
+		void initialize();
+
+		template <class IteratorA, class IteratorB, class IteratorC>
+		inline bool range_contains(IteratorA from, const IteratorB& end,
+			const IteratorC& candidate)
+		{
+			while (from != end)
+				if (&*from++ == &*candidate)
+					return true;
+			return false;
+		}
+
+	public:
+		/**
+		* ImageListSeekInput constructor using a directory path
+		*/
+		ImageListSeekInput(const string directory,
+			const Size &size = Size(-1, -1),
+			int colorFlag = -1,
+			int loops = 1);
+		/**
+		* ImageListSeekInput constructor using a vector of filenames
+		* containing the images of the sequence in order.
+		*/
+		ImageListSeekInput(const vector<string> &files,
+			const Size &size = Size(-1, -1),
+			int colorFlag = -1,
+			int loops = 1);
+
+		/**
+		* Overrided from Input Base Class. Used to extract a frame from the input sequence.
+		* Returns whether or not a frame was sucessfuly returned.
+		* @param frame: output image frame from the sequence
+		* @param seek: get the image base on the seek index, seek=1(next frame), seek=0(current frame), seek=-1(previous frame) and so on ...
+		*/
+		bool getFrame(Mat &frame, int seek = 1);
+
+
+	};
 }
 
 
