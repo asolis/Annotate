@@ -234,10 +234,6 @@ void Processor::run()
 	destroyAllWindows();
 }
 
-
-
-
-
 void SeekProcessor::mouseCallback(int event, int x, int y, int flags, void *ptr)
 {
 	MouseListener* listener = (MouseListener*)ptr;

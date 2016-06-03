@@ -171,3 +171,65 @@ bool ImageListInput::getFrame(Mat &frame)
     return false;
 }
 
+ImageListSeekInput::ImageListSeekInput(const string directory, const Size &size, int colorFlag, int loops) :
+	Input(size, colorFlag), _loops(loops)
+{
+	Files::listImages(directory, _filenames);
+	initialize();
+}
+ImageListSeekInput::ImageListSeekInput(const vector<string> &files, const Size &size, int colorFlag, int loops) :
+	Input(size, colorFlag), _filenames(files), _loops(loops)
+{
+	initialize();
+}
+
+void ImageListSeekInput::initialize()
+{
+	if (_filenames.size() < 1)
+	{
+		_it = _filenames.end();
+		_opened = false;
+		return;
+	}
+	_it = _filenames.begin();
+	_opened = true;
+}
+
+bool ImageListSeekInput::getFrame(Mat &frame, int seek)
+{
+	if (_it == _filenames.end() && (_loops > 0 || _loops < 0))
+	{
+		_it = _filenames.begin();
+		_loops--;
+	}
+	if (_it != _filenames.end() && !range_contains(_filenames.begin(), _filenames.end(), _it))
+	{
+		frame = imread(*_it);
+
+		_orgSize = frame.size();
+		if (_size.width < 0 && _size.height < 0)
+		{
+
+		}
+		else if (_size.width < 0 && _size.height > 0)
+		{
+			resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
+		}
+		else if (_size.width > 0 && _size.height < 0)
+		{
+			resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
+		}
+		else if (_size.width != frame.cols && _size.height != frame.rows)
+		{
+			resize(frame, frame, _size);
+		}
+		if (_convert)
+			cvtColor(frame, frame, _conversionFlag);
+
+		_size.width = frame.cols;
+		_size.height = frame.rows;
+		_it += seek;
+		return true;
+	}
+	return false;
+}
