@@ -687,6 +687,78 @@ public:
 		}
 	}
 
+	virtual void readXMLAnnotationFile(const string &filename) 
+	{
+		string input_xml;
+		std::string line;
+		std::ifstream in(filename);
+		// read the file into input_XML
+		while (getline(in, line))
+			input_xml += line;
+
+		vector<char> xml_copy(input_xml.begin(), input_xml.end());
+		xml_copy.push_back('\0');
+
+		xml_document<> doc;
+		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
+
+		annotations.clear();
+		drawing.clear();
+		trackers.clear();
+
+		// parse the root node
+		xml_node<>* cur_node = doc.first_node("video");
+
+		// frame loop
+		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
+		{
+			vector<Annotation> instance;
+			currentFrameN = atoi(frame_node->first_attribute()->value());
+
+			// box loop
+			for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
+			{
+				Annotation tmp;
+				vector<Point2f> pts;
+				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
+				{
+					if (strcmp(point->name(), "actionType") == 0) 
+					{
+						tmp.actionType = atoi(point->value());
+						continue; 
+					}
+
+					if (strcmp(point->name(), "mode") == 0)
+					{
+						tmp.mode = atoi(point->value());
+						continue;
+					}
+					
+					std::string tmp(point->name());
+					if (tmp.find("pointNumber") == string::npos) { continue; }
+					char *value = point->value();
+					// parse the value
+					char value_array[50];
+					strncpy(value_array, value, sizeof(value_array));
+					char *single_axis = strtok(value_array, ",");
+					std::vector<char*> xy;
+					while (NULL != single_axis)
+					{
+						xy.push_back(single_axis);
+						single_axis = strtok(NULL, ",");
+					}
+					pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
+				}
+				tmp.annotateFrame = pts;
+				instance.push_back(tmp);
+			}
+
+			annotations.push_back(instance);
+		}
+
+		currentFrameN++;
+	}
+
 	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
     {
         ifstream file;
