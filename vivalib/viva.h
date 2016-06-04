@@ -440,7 +440,7 @@ namespace viva {
 		* To exit you should press the ESC key. The SPACE key will allow to pause and/or continue the video
 		* sequence
 		*/
-		void run();
+		void run(int startFrame = 0);
 	};
 
 
@@ -574,10 +574,6 @@ namespace viva {
         void run();
     };
     
-    
-    
-    
- 
 }
 
 

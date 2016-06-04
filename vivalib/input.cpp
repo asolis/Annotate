@@ -106,7 +106,11 @@ bool VideoInput::getFrame(Mat &frame)
     
     return true;
 }
-
+bool VideoInput::getFrame(Mat &frame, int seek)
+{
+	// This function performs the same behaviour as the origin getFrame function
+	return getFrame(frame);
+}
 
 ImageListInput::ImageListInput(const string directory, const Size &size, int colorFlag, int loops ):
 Input(size, colorFlag), _loops(loops)
@@ -171,38 +175,19 @@ bool ImageListInput::getFrame(Mat &frame)
     return false;
 }
 
-ImageListSeekInput::ImageListSeekInput(const string directory, const Size &size, int colorFlag, int loops) :
-	Input(size, colorFlag), _loops(loops)
-{
-	Files::listImages(directory, _filenames);
-	initialize();
-}
-ImageListSeekInput::ImageListSeekInput(const vector<string> &files, const Size &size, int colorFlag, int loops) :
-	Input(size, colorFlag), _filenames(files), _loops(loops)
-{
-	initialize();
-}
-
-void ImageListSeekInput::initialize()
-{
-	if (_filenames.size() < 1)
-	{
-		_it = _filenames.end();
-		_opened = false;
-		return;
-	}
-	_it = _filenames.begin();
-	_opened = true;
-}
-
-bool ImageListSeekInput::getFrame(Mat &frame, int seek)
+bool ImageListInput::getFrame(Mat &frame, int seek)
 {
 	if (_it == _filenames.end() && (_loops > 0 || _loops < 0))
 	{
 		_it = _filenames.begin();
 		_loops--;
 	}
-	if (_it != _filenames.end() && !range_contains(_filenames.begin(), _filenames.end(), _it))
+	
+	_it += seek;
+
+	vector<string>::iterator tmp = std::find(_filenames.begin(), _filenames.end(), *_it);
+
+	if (std::find(_filenames.begin(), _filenames.end(), *_it) != _filenames.end()) 
 	{
 		frame = imread(*_it);
 
@@ -228,7 +213,7 @@ bool ImageListSeekInput::getFrame(Mat &frame, int seek)
 
 		_size.width = frame.cols;
 		_size.height = frame.rows;
-		_it += seek;
+
 		return true;
 	}
 	return false;

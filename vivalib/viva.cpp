@@ -260,8 +260,7 @@ void SeekProcessor::mouseCallback(int event, int x, int y, int flags, void *ptr)
 	}
 }
 
-
-void SeekProcessor::run()
+void SeekProcessor::run(int startFrame)
 {
 
 	int FLAGS = CV_GUI_NORMAL | CV_WINDOW_AUTOSIZE;
@@ -277,15 +276,18 @@ void SeekProcessor::run()
 		return;
 
 
-	long frameN = -1;
+	long frameN = 0;
 	Mat freezeFrame;
-	bool freezed = false;
+	bool freezed = true;
 	bool running = true;
 	int key = Keys::NONE;
-	while (running)
+
+	// initialize the freezeFrame
+	bool iniState = _input->getFrame(freezeFrame, startFrame);
+
+	while (running && iniState)
 	{
 		bool hasFrame = true;
-
 
 		Mat frame, frameOut;
 		if (!freezed || key == Keys::n)
@@ -294,17 +296,18 @@ void SeekProcessor::run()
 			freezeFrame = frame;
 			frameN++;
 		}
+		else if (!freezed || key == Keys::p)
+		{
+			hasFrame = _input->getFrame(frame, -1);
+			freezeFrame = frame;
+			frameN--;
+		}
 		else
 		{
 			frame = freezeFrame;
 		}
 
-
-		if (!hasFrame || frame.empty())
-		{
-			_output->close();
-		}
-		else
+		if (hasFrame && !frame.empty())
 		{
 			if (_showInput && !frame.empty())
 				cv::imshow(_inputWindowName, frame);
@@ -336,7 +339,6 @@ void SeekProcessor::run()
 
 			if (key == Keys::ESC)
 			{
-				_output->close();
 				running = false;
 			}
 			if (key == Keys::SPACE || _pause)
@@ -355,7 +357,6 @@ void SeekProcessor::run()
 
 	destroyAllWindows();
 }
-
 
 void BatchProcessor::mouseCallback(int event, int x, int y, int flags, void *ptr)
 {
