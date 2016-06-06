@@ -200,8 +200,11 @@ public:
 
 	virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
 	{
-		if (currentFrameN != frameN)
+		if (frameN >= annotations.size())
 		{
+			// current frame doesn't have any annotation information
+			// create a new annotation base on the previous annotation information
+			
 			/** copy annotations from previous frame to current frame**/
 			if ((continuity || tracking) && frameN > 0)
 			{
@@ -219,9 +222,8 @@ public:
 			currentFrameN = frameN;
 			frame.copyTo(currentFrame);
 
-
 			/** if tracking is selected, propose a new position for the previous
-				frame annotations **/
+			frame annotations **/
 
 			if (tracking)
 			{
@@ -237,89 +239,92 @@ public:
 						annotations[currentFrameN][i].annotateFrame[p] += deltha;
 					}
 				}
-			}
-
-
+			}	
 		}
 
+		currentFrameN = frameN;
 		frame.copyTo(output);
 
 		if (showHelp)
 			helpHUD(output);
 
-		if(showActionHelp)
+		if (showActionHelp)
 			helpActionHUB(output);
 
-        for (int i = 0; i < annotations[currentFrameN].size(); i++)
-        {
-            Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow,thickness, true);
+
+		// display the existed annotation
+		for (int i = 0; i < annotations[currentFrameN].size(); i++)
+		{
+			Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow, thickness, true);
 			string actionTypeString;
 			getActionStringFromIndex(annotations[currentFrameN][i].actionType, actionTypeString);
-            Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame, i + 1, actionTypeString);
-        }
+			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame, i + 1, actionTypeString);
+		}
 
-        Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
-
-
-        if (mode == POLY)
-        {
-            if (drawing.size() > 0)
-            {
-                line(output, drawing.back(), mousePos,
-                     Color::blue, thickness - 1, CV_AA);
-                line(output, mousePos, drawing.front(),
-                     Color::red, thickness - 1 , CV_AA);
-            }
-        }
-        
-        if (mode == ROTA_RECT)
-        {
-            int pts = drawing.size();
-
-            if (pts == 1)
-            {
-                line(output, drawing.front(), mousePos,
-                     Color::blue, thickness - 1, CV_AA);
-            }
-            else if (pts == 2)
-            {
+		// display the currennt drawing
+		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
 
 
-                vector<Point2f> _rRect(4);
-                _rRect[0] = drawing.back();
-                _rRect[1] = drawing.front();
-                getRRect(mousePos, ratio, _rRect[0], _rRect[1], _rRect[2], _rRect[3]);
+		if (mode == POLY)
+		{
+			if (drawing.size() > 0)
+			{
+				line(output, drawing.back(), mousePos,
+					Color::blue, thickness - 1, CV_AA);
+				line(output, mousePos, drawing.front(),
+					Color::red, thickness - 1, CV_AA);
+			}
+		}
 
-                for (size_t i = 0; i < _rRect.size(); i++)
-                {
-                    line(output, _rRect[i], _rRect[(i + 1)% 4],
-                         (i==0)? Color::red : Color::blue,
-                         (i==0)? thickness  : thickness - 1, CV_AA);
-                }
+		if (mode == ROTA_RECT)
+		{
+			int pts = drawing.size();
 
-                circle(output, _rRect[2], thickness, Color::green);
+			if (pts == 1)
+			{
+				line(output, drawing.front(), mousePos,
+					Color::blue, thickness - 1, CV_AA);
+			}
+			else if (pts == 2)
+			{
 
-                if (ratio > 0)
-                    circle(output,  _rRect[0], thickness, Color::yellow);
 
-            }
-        }
+				vector<Point2f> _rRect(4);
+				_rRect[0] = drawing.back();
+				_rRect[1] = drawing.front();
+				getRRect(mousePos, ratio, _rRect[0], _rRect[1], _rRect[2], _rRect[3]);
 
-        if (mode == AXIS_RECT)
-        {
-            if (drawing.size() == 1)
-            {
-                vector<Point2f> _aRect(4);
-                _aRect[0] = drawing.front();
-                getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
-                rectangle(output,_aRect[0],
-                          _aRect[2],
-                          Color::blue,
-                          thickness - 1,
-                          CV_AA);
-                circle(output, _aRect[2], thickness - 1, Color::green);
-            }
-        }
+				for (size_t i = 0; i < _rRect.size(); i++)
+				{
+					line(output, _rRect[i], _rRect[(i + 1) % 4],
+						(i == 0) ? Color::red : Color::blue,
+						(i == 0) ? thickness : thickness - 1, CV_AA);
+				}
+
+				circle(output, _rRect[2], thickness, Color::green);
+
+				if (ratio > 0)
+					circle(output, _rRect[0], thickness, Color::yellow);
+
+			}
+		}
+
+		if (mode == AXIS_RECT)
+		{
+			if (drawing.size() == 1)
+			{
+				vector<Point2f> _aRect(4);
+				_aRect[0] = drawing.front();
+				getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
+				rectangle(output, _aRect[0],
+					_aRect[2],
+					Color::blue,
+					thickness - 1,
+					CV_AA);
+				circle(output, _aRect[2], thickness - 1, Color::green);
+			}
+		}
+		
     };
 
     /**
