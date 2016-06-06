@@ -284,6 +284,7 @@ void SeekProcessor::run(int startFrame)
 
 	// initialize the freezeFrame
 	bool iniState = _input->getFrame(freezeFrame, startFrame);
+	frameN += startFrame;
 	bool hasFrame = true;
 
 	while (running && iniState)

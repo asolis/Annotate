@@ -692,7 +692,7 @@ public:
 		}
 	}
 
-	virtual void readXMLAnnotationFile(const string &filename) 
+	virtual int readXMLAnnotationFile(const string &filename) 
 	{
 		string input_xml;
 		std::string line;
@@ -761,7 +761,7 @@ public:
 			annotations.push_back(instance);
 		}
 
-		currentFrameN++;
+		return currentFrameN;
 	}
 
 	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)

@@ -47,7 +47,8 @@ int main(int argc, const char * argv[])
         "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
         "{t track           |e          | choices =  e | d | n  (i.e., enable, disable, and new). The 'e' enable option will generate a proposal position for next frame. Disable 'd' option will keep the same position from previous frame. New 'n' will clear the annotations from previous frame}"
-        "{o output          |           | filename for annnotation results}"
+		"{i import			|			| import xml file}"
+		"{o output          |           | filename for annnotation results}"
 		"{ox output XML		|			| filename for xml file annotation results}"
 
     ;
@@ -80,10 +81,13 @@ int main(int argc, const char * argv[])
 	SeekProcessor processor;
     processor.setInput(input);
     Ptr<ProcessFrame> proc = process;
-    processor.setProcess(proc);
+	int latestFrame = 0;
+	if(parser.has("i"))
+		latestFrame = process->readXMLAnnotationFile(parser.get<string>("i"));
+	processor.setProcess(proc);
     processor.listenToMouseEvents();
     processor.listenToKeyboardEvents();
-    processor.run();
+    processor.run(latestFrame);
 
 
 	Size org = input->getOrgSize();
