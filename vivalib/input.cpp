@@ -123,19 +123,19 @@ Input(size, colorFlag), _filenames(files), _loops(loops)
 {
     initialize();
 }
-
 void ImageListInput::initialize()
 {
     if (_filenames.size() < 1)
     {
         _it = _filenames.end();
+		_current_position = 0;
         _opened = false;
         return;
     }
     _it = _filenames.begin();
+	_current_position = 0;
     _opened = true;
 }
-
 bool ImageListInput::getFrame(Mat &frame)
 {
     if (_it == _filenames.end() && (_loops > 0 || _loops < 0))
@@ -174,47 +174,43 @@ bool ImageListInput::getFrame(Mat &frame)
     }
     return false;
 }
-
 bool ImageListInput::getFrame(Mat &frame, int seek)
 {
-	if (_it == _filenames.end() && (_loops > 0 || _loops < 0))
+	// move the position
+	_current_position += seek;
+
+	// check if the _current_position out of range
+	if (_current_position < 0 || _current_position >= _filenames.size())
 	{
-		_it = _filenames.begin();
-		_loops--;
+		// return false and do nothing
+		return false;
 	}
-	
-	_it += seek;
 
-	vector<string>::iterator tmp = std::find(_filenames.begin(), _filenames.end(), *_it);
+	// read the image
+	frame = imread(_filenames.at(_current_position));
 
-	if (std::find(_filenames.begin(), _filenames.end(), *_it) != _filenames.end()) 
+	_orgSize = frame.size();
+	if (_size.width < 0 && _size.height < 0)
 	{
-		frame = imread(*_it);
 
-		_orgSize = frame.size();
-		if (_size.width < 0 && _size.height < 0)
-		{
-
-		}
-		else if (_size.width < 0 && _size.height > 0)
-		{
-			resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
-		}
-		else if (_size.width > 0 && _size.height < 0)
-		{
-			resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
-		}
-		else if (_size.width != frame.cols && _size.height != frame.rows)
-		{
-			resize(frame, frame, _size);
-		}
-		if (_convert)
-			cvtColor(frame, frame, _conversionFlag);
-
-		_size.width = frame.cols;
-		_size.height = frame.rows;
-
-		return true;
 	}
-	return false;
+	else if (_size.width < 0 && _size.height > 0)
+	{
+		resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
+	}
+	else if (_size.width > 0 && _size.height < 0)
+	{
+		resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
+	}
+	else if (_size.width != frame.cols && _size.height != frame.rows)
+	{
+		resize(frame, frame, _size);
+	}
+	if (_convert)
+		cvtColor(frame, frame, _conversionFlag);
+
+	_size.width = frame.cols;
+	_size.height = frame.rows;
+
+	return true;
 }

@@ -208,6 +208,7 @@ namespace viva
     private:
         vector<string>    _filenames;
         vector<string>::iterator _it;
+		int _current_position;
         int _loops;
         bool _opened;
         

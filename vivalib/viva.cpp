@@ -284,11 +284,11 @@ void SeekProcessor::run(int startFrame)
 
 	// initialize the freezeFrame
 	bool iniState = _input->getFrame(freezeFrame, startFrame);
+	bool hasFrame = true;
 
 	while (running && iniState)
 	{
-		bool hasFrame = true;
-
+		
 		Mat frame, frameOut;
 		if (!freezed || key == Keys::n)
 		{
@@ -351,7 +351,10 @@ void SeekProcessor::run(int startFrame)
 				_process->keyboardInput(key);
 
 		}
-
+		else
+		{
+			break;
+		}
 	}
 
 
