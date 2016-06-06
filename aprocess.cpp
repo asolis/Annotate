@@ -306,6 +306,7 @@ void AnnotateProcess::helpHUD(Mat &image)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
+	help.push_back(" # : " + std::to_string(currentFrameN));
     help.push_back(ss.str());
     help.push_back(" (-) : Reduce ratio 0.1");
     help.push_back(" (+) : Increase ratio 0.1");

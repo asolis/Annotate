@@ -249,7 +249,7 @@ public:
 
 		if(showActionHelp)
 			helpActionHUB(output);
-            
+
         for (int i = 0; i < annotations[currentFrameN].size(); i++)
         {
             Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow,thickness, true);
