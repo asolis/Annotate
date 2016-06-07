@@ -135,6 +135,7 @@ private:
     int thickness;
     int mode;
     int selection;
+	int peopleAmount;
 	int currentActionType;
     float ratio;
     bool showHelp;
@@ -198,7 +199,8 @@ public:
                       drawing(),
                       trackers(),
                       currentFrame(),
-					  currentActionType(ACTION::NOTHING)
+					  currentActionType(ACTION::NOTHING),
+		              peopleAmount(0)
     {}
 
 
@@ -262,7 +264,8 @@ public:
 			Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow, thickness, true);
 			string actionTypeString;
 			getActionStringFromIndex(annotations[currentFrameN][i].actionType, actionTypeString);
-			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame, i + 1, actionTypeString);
+			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame,
+				annotations[currentFrameN][i].ID, actionTypeString);
 		}
 
 		// display the currennt drawing
@@ -569,6 +572,7 @@ public:
 				tmp.annotateFrame = drawing;
 				tmp.mode = mode;
 				tmp.actionType = currentActionType;
+				tmp.ID = peopleAmount++;
 
                 annotations[currentFrameN].push_back(tmp);
             }
@@ -581,7 +585,7 @@ public:
             newTracker();
             drawing.clear();
             selection = -1;
-			//currentActionType = ACTION::NOTHING;
+			
         }
     }
 
@@ -625,6 +629,7 @@ public:
 		// create the root node
 		xml_node<>* root = doc.allocate_node(node_element, "video");
 		doc.append_node(root);
+		allocateAttrToNodeXML(doc, root, "totalPeopleAmount", std::to_string(peopleAmount));
 
 		for (size_t i = 0; i < annotations.size(); i++)
 		{
@@ -641,6 +646,9 @@ public:
 				// add the box number of one frame
 				allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
 				
+				// add the person ID
+				allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
+
 				std::string actionType;
 				getActionStringFromIndex(annotations[i][j].actionType, actionType);
 				// add the action type for this box
@@ -720,6 +728,7 @@ public:
 
 		// parse the root node
 		xml_node<>* cur_node = doc.first_node("video");
+		peopleAmount = atoi(cur_node->first_attribute()->value());
 
 		// frame loop
 		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
@@ -746,6 +755,12 @@ public:
 						continue;
 					}
 					
+					if (strcmp(point->name(), "personID") == 0)
+					{
+						tmp.ID = atoi(point->value());
+						continue;
+					}
+
 					std::string tmp(point->name());
 					if (tmp.find("pointNumber") == string::npos) { continue; }
 					char *value = point->value();
@@ -842,7 +857,6 @@ public:
 				vector<Point2f> pts;
 				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
 				{
-					//if (strcmp(point->name(), "boxNumber") == 0) { continue; }
 					std::string tmp(point->name());
 					if (tmp.find("pointNumber") == string::npos) { continue; }
 					char *value = point->value();
