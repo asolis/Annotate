@@ -47,7 +47,7 @@ int main(int argc, const char * argv[])
         "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
         "{t track           |e          | choices =  e | d | n  (i.e., enable, disable, and new). The 'e' enable option will generate a proposal position for next frame. Disable 'd' option will keep the same position from previous frame. New 'n' will clear the annotations from previous frame}"
-		"{i import          |           | import xml file}"
+		"{i import          |           | import xml file (only for image list input)}"
 		"{o output          |           | filename for annnotation results}"
 		"{ox outputXML      |           | filename for xml file annotation results}"
 
@@ -76,7 +76,7 @@ int main(int argc, const char * argv[])
     bool tracking   = (track == "e");
     Ptr<AnnotateProcess> process =
                 new AnnotateProcess(parser.get<float>("r"),
-                                    method, continuity, tracking);
+                                    method, continuity, tracking, input->totalFrames());
 	int latestFrame = 0;
 	if (parser.has("i"))
 		latestFrame = process->readXMLAnnotationFile(parser.get<string>("i"));

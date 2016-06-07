@@ -108,8 +108,13 @@ bool VideoInput::getFrame(Mat &frame)
 }
 bool VideoInput::getFrame(Mat &frame, int seek)
 {
+	// TO-DO : get the frame according to the seek number
 	// This function performs the same behaviour as the origin getFrame function
 	return getFrame(frame);
+}
+int VideoInput::totalFrames()
+{
+	return _CameraInput.get(CV_CAP_PROP_FRAME_COUNT);
 }
 
 ImageListInput::ImageListInput(const string directory, const Size &size, int colorFlag, int loops ):
@@ -213,4 +218,8 @@ bool ImageListInput::getFrame(Mat &frame, int seek)
 	_size.height = frame.rows;
 
 	return true;
+}
+int ImageListInput::totalFrames()
+{
+	return _filenames.size();
 }

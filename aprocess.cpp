@@ -306,7 +306,7 @@ void AnnotateProcess::helpHUD(Mat &image)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
-	help.push_back(" Frame Number : " + std::to_string(currentFrameN));
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame));
 	help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (-) : Reduce ratio 0.1");
@@ -346,7 +346,7 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 	int characterWidth = 10;
 
 	vector<string> help;
-	help.push_back(" Frame Number : " + std::to_string(currentFrameN));
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame));
 	help.push_back(" Options:");
 	help.push_back(" (0) : Nothing");
 	help.push_back(" (1) : Ordering");

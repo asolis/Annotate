@@ -99,6 +99,7 @@ struct Annotation
 	vector<Point2f> annotateFrame;
 	int mode;
 	int actionType;
+	int ID;
 };
 
 class AnnotateProcess : public ProcessFrame
@@ -128,6 +129,7 @@ private:
 
 
     long currentFrameN;
+	int totalFrame;
     Point2f mousePos;
     Point2f mouseShift;
     int thickness;
@@ -178,8 +180,10 @@ public:
     AnnotateProcess(float ratioYX = -1.f,
                     int   method  = POLY,
                     bool  cont    =  true,
-                    bool  track   =  true):
+                    bool  track   =  true,
+					int totalFrameN = 0):
                       currentFrameN(-1),
+                      totalFrame(totalFrameN),
                       mousePos(-1,-1),
                       mouseShift(-1,-1),
                       thickness(2),

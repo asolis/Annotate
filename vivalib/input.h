@@ -87,6 +87,12 @@ namespace viva
 		*/
 		virtual bool  getFrame(Mat &image, int seek) = 0;
 
+		/**
+		*  Get the total frames number
+		*  @return bool: whenever an image was retrieved or not from the input.
+		*/
+		virtual int totalFrames() = 0;
+
         /**
          *  Virtual desctructor
          */
@@ -182,6 +188,12 @@ namespace viva
 		* @param frame: output image frame from the sequence
 		*/
 		bool getFrame(Mat &frame, int seek);
+
+		/**
+		* Overrided from Input Base Class. Used to get the total frame number.
+		* Returns the total frame number.
+		*/
+		int totalFrames();
     };
     
     /**
@@ -244,6 +256,12 @@ namespace viva
 		* @param seek: get the image base on the seek index, seek=1(next frame), seek=0(current frame), seek=-1(previous frame) and so on ...
 		*/
 		bool getFrame(Mat &frame, int seek);
+
+		/**
+		* Overrided from Input Base Class. Used to get the total frame number.
+		* Returns the total frame number.
+		*/
+		int totalFrames();
 			
     };
 }
