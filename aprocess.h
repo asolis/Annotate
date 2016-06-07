@@ -701,6 +701,9 @@ public:
 		while (getline(in, line))
 			input_xml += line;
 
+		if (input_xml == "")
+			return 0;
+
 		vector<char> xml_copy(input_xml.begin(), input_xml.end());
 		xml_copy.push_back('\0');
 

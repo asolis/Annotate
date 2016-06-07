@@ -306,7 +306,8 @@ void AnnotateProcess::helpHUD(Mat &image)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
-	help.push_back(" # : " + std::to_string(currentFrameN));
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN));
+	help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (-) : Reduce ratio 0.1");
     help.push_back(" (+) : Increase ratio 0.1");
@@ -345,6 +346,8 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 	int characterWidth = 10;
 
 	vector<string> help;
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN));
+	help.push_back(" Options:");
 	help.push_back(" (0) : Nothing");
 	help.push_back(" (1) : Ordering");
 	help.push_back(" (2) : Waiting");
@@ -361,7 +364,7 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 
 	for (size_t i = 0, h = fsize; i < help.size(); i++, h += fsize)
 	{
-		if (currentActionType == i)
+		if (currentActionType == i-2)
 		{
 			putText(image, help[i], Point(fsize, h),
 				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
@@ -372,34 +375,6 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
 		}
 	}
-	/*
-	int coordinateX = image.cols - (characterWidth * fsize + margin);
-	int coordinateY = image.rows - (help.size() * fsize + margin);
-
-	Rect region(coordinateX, coordinateY,  
-		characterWidth * fsize + margin,
-		help.size() * fsize + margin);
-	region &= Rect(0, 0, image.cols, image.rows);
-
-	GaussianBlur(image(region),
-		image(region),
-		Size(0, 0), 5);
-
-	for (size_t i = 0, h = fsize; i < help.size(); i++, h += fsize)
-	{
-		if (currentActionType == i)
-		{
-			putText(image, help[i], Point(fsize + coordinateX, h + coordinateY),
-				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
-		}
-		else
-		{
-			putText(image, help[i], Point(fsize + coordinateX, h + coordinateY),
-				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
-		}
-		
-	}
-	*/
 }
 
 Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
