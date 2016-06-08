@@ -42,6 +42,7 @@ const int Keys::SPACE = 32;
 const int Keys::NONE  = -1;
 const int Keys::c = 'c';
 const int Keys::n = 'n';
+const int Keys::p = 'p';
 
 string Files::tmpFilenameInFolder(const string &folder,
                                   const string &ext)

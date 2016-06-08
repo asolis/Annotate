@@ -47,8 +47,10 @@ int main(int argc, const char * argv[])
         "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
         "{t track           |e          | choices =  e | d | n  (i.e., enable, disable, and new). The 'e' enable option will generate a proposal position for next frame. Disable 'd' option will keep the same position from previous frame. New 'n' will clear the annotations from previous frame}"
-        "{o output          |           | filename for annnotation results}"
-		"{ox output XML		|			| filename for xml file annotation results}"
+		"{i import          |           | import xml file (only for image list input)}"
+		"{a actionType      |           | import actionType file}"
+		"{o output          |           | filename for annnotation results}"
+		"{ox outputXML      |           | filename for xml file annotation results}"
 
     ;
 
@@ -75,16 +77,21 @@ int main(int argc, const char * argv[])
     bool tracking   = (track == "e");
     Ptr<AnnotateProcess> process =
                 new AnnotateProcess(parser.get<float>("r"),
-                                    method, continuity, tracking);
+                                    method, continuity, tracking, parser.has("a"),input->totalFrames());
+	int latestFrame = 0;
+	if (parser.has("i"))
+		latestFrame = process->readXMLAnnotationFile(parser.get<string>("i"));
 
-    Processor processor;
+	if (parser.has("a"))
+		process->readActionTypeFile(parser.get<string>("a"));
+
+	SeekProcessor processor;
     processor.setInput(input);
     Ptr<ProcessFrame> proc = process;
-    processor.setProcess(proc);
-    processor.startPaused();
+	processor.setProcess(proc);
     processor.listenToMouseEvents();
     processor.listenToKeyboardEvents();
-    processor.run();
+    processor.run(latestFrame);
 
 
 	Size org = input->getOrgSize();
