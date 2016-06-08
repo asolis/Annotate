@@ -348,11 +348,10 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 	vector<string> help;
 	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame));
 	help.push_back(" Options:");
-	help.push_back(" (0) : Nothing");
-	help.push_back(" (1) : Ordering");
-	help.push_back(" (2) : Waiting");
-	help.push_back(" (3) : Picking");
-	help.push_back(" (4) : Leaving");
+	for (int i = 0; i < actionType.size(); i++)
+	{
+		help.push_back(" (" + std::to_string(i) + ") : " + actionType.at(i));
+	}
 
 	Rect region(0, 0, characterWidth * fsize + margin,
 		help.size() * fsize + margin);
@@ -362,9 +361,14 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 		image(region),
 		Size(0, 0), 5);
 
-	for (size_t i = 0, h = fsize; i < help.size(); i++, h += fsize)
+	for (int i = 0, h = fsize; i < help.size(); i++, h += fsize)
 	{
-		if (currentActionType == i-2)
+		if ((i-2) < 0)
+		{
+			putText(image, help[i], Point(fsize, h),
+				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+		} 
+		else if (currentActionType == actionType.at(i-2))
 		{
 			putText(image, help[i], Point(fsize, h),
 				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);

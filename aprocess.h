@@ -98,7 +98,7 @@ struct Annotation
 {
 	vector<Point2f> annotateFrame;
 	int mode;
-	int actionType;
+	string actionType;
 	int ID;
 };
 
@@ -136,7 +136,7 @@ private:
     int mode;
     int selection;
 	int peopleAmount;
-	int currentActionType;
+	string currentActionType;
     float ratio;
     bool showHelp;
 	bool showActionHelp;
@@ -153,18 +153,9 @@ public:
         POLY
     };
 
-	// Define the action type 
-	enum ACTION
-	{
-		NOTHING,
-		ORDERING, 
-		WAITING,
-		PICKING,
-		LEAVING
-	};
-
 	vector<vector<Annotation>> annotations;
-	
+	vector<std::string> actionType;
+
     vector<Point2f> drawing;
 
     vector<Ptr<SKCFDCF>> trackers;
@@ -199,7 +190,7 @@ public:
                       drawing(),
                       trackers(),
                       currentFrame(),
-					  currentActionType(ACTION::NOTHING),
+					  currentActionType("null"),
 		              peopleAmount(0)
     {}
 
@@ -262,10 +253,8 @@ public:
 		for (int i = 0; i < annotations[currentFrameN].size(); i++)
 		{
 			Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow, thickness, true);
-			string actionTypeString;
-			getActionStringFromIndex(annotations[currentFrameN][i].actionType, actionTypeString);
 			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame,
-				annotations[currentFrameN][i].ID, actionTypeString);
+				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType);
 		}
 
 		// display the currennt drawing
@@ -501,24 +490,10 @@ public:
 			showHelp = false;
 		}
 
-		// handle the action type selection
-		switch (key)
+		for (int i = 0; i < actionType.size(); i++)
 		{
-		case '0' + ACTION::NOTHING :
-			currentActionType = ACTION::NOTHING;
-			break;
-		case '0' + ACTION::ORDERING:
-			currentActionType = ACTION::ORDERING;
-			break;
-		case '0' + ACTION::WAITING:
-			currentActionType = ACTION::WAITING;
-			break;
-		case '0' + ACTION::PICKING:
-			currentActionType = ACTION::PICKING;
-			break;
-		case '0' + ACTION::LEAVING:
-			currentActionType = ACTION::LEAVING;
-			break;
+			if (key == ('0' + i))
+				currentActionType = actionType.at(i);
 		}
     };
 
@@ -644,15 +619,13 @@ public:
 				node->append_node(sub_node);
 
 				// add the box number of one frame
-				allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
+				// allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
 				
 				// add the person ID
 				allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
 
-				std::string actionType;
-				getActionStringFromIndex(annotations[i][j].actionType, actionType);
 				// add the action type for this box
-				allocateAttrToNodeXML(doc, sub_node, "actionType", actionType);
+				allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
 				
 				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
 				{					
@@ -681,27 +654,6 @@ public:
 		char *CharTmp = doc.allocate_string(value.c_str());
 		xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
 		node->append_attribute(attr);
-	}
-
-	virtual void getActionStringFromIndex(int actionIndex, string &actionType) {
-		switch (actionIndex)
-		{
-		case ACTION::NOTHING:
-			actionType = "nothing";
-			break;
-		case ACTION::LEAVING:
-			actionType = "leaving";
-			break;
-		case ACTION::PICKING:
-			actionType = "picking";
-			break;
-		case ACTION::WAITING:
-			actionType = "waiting";
-			break;
-		case ACTION::ORDERING:
-			actionType = "ordering";
-			break;
-		}
 	}
 
 	virtual int readXMLAnnotationFile(const string &filename) 
@@ -745,7 +697,7 @@ public:
 				{
 					if (strcmp(point->name(), "actionType") == 0) 
 					{
-						tmp.actionType = atoi(point->value());
+						tmp.actionType = point->value();
 						continue; 
 					}
 
@@ -784,6 +736,26 @@ public:
 		}
 
 		return currentFrameN;
+	}
+
+	virtual bool readActionTypeFile(const string &filename)
+	{
+		string line;
+		ifstream myfile(filename);
+		if (myfile.is_open())
+		{
+			while (getline(myfile, line))
+			{
+				actionType.push_back(line);
+			}
+			myfile.close();
+			return true;
+		}
+		else
+		{
+			cout << "Unable to open file";
+			return false;
+		}
 	}
 
 	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
