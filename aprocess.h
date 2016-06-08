@@ -142,6 +142,7 @@ private:
 	bool showActionHelp;
     bool continuity;
     bool tracking;
+	bool actionAnnotating;
 
 
 public:
@@ -173,6 +174,7 @@ public:
                     int   method  = POLY,
                     bool  cont    =  true,
                     bool  track   =  true,
+					bool  action  =  false,
 					int totalFrameN = 0):
                       currentFrameN(-1),
                       totalFrame(totalFrameN),
@@ -190,8 +192,9 @@ public:
                       drawing(),
                       trackers(),
                       currentFrame(),
-					  currentActionType("null"),
-		              peopleAmount(0)
+					  currentActionType(""),
+		              peopleAmount(0),
+		              actionAnnotating(action)
     {}
 
 
@@ -483,7 +486,7 @@ public:
             ratio += .1;
         }
 
-		if (key == 'l' || key == 'L')
+		if (actionAnnotating && (key == 'l' || key == 'L'))
 		{
 			// add the action annotation code
 			showActionHelp = !showActionHelp;

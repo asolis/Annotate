@@ -293,7 +293,7 @@ void AnnotateProcess::helpHUD(Mat &image)
 
     int margin = 10;
     int fsize  = 20;
-    int characterWidth  = 20;
+    int characterWidth  = 15;
 
     if (mode == AXIS_RECT)
         ss << "Axis Align Rectangle ";
@@ -306,14 +306,15 @@ void AnnotateProcess::helpHUD(Mat &image)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
-	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame));
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
 	help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (-) : Reduce ratio 0.1");
     help.push_back(" (+) : Increase ratio 0.1");
     help.push_back(" (h) : Toggle this help ");
     help.push_back(" (n) : Next frame");
-	help.push_back(" (l) : Get the action class list");
+	if(actionAnnotating)
+		help.push_back(" (l) : Get the action class list");
     help.push_back(" (a) : Accept annotation");
     help.push_back(" (d) : Delete annotation");
     help.push_back(" (b) : Remove last point/annotation");
@@ -343,10 +344,10 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 {
 	int margin = 10;
 	int fsize = 15;
-	int characterWidth = 10;
+	int characterWidth = 13;
 
 	vector<string> help;
-	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame));
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
 	help.push_back(" Options:");
 	for (int i = 0; i < actionType.size(); i++)
 	{

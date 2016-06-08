@@ -77,7 +77,7 @@ int main(int argc, const char * argv[])
     bool tracking   = (track == "e");
     Ptr<AnnotateProcess> process =
                 new AnnotateProcess(parser.get<float>("r"),
-                                    method, continuity, tracking, input->totalFrames());
+                                    method, continuity, tracking, parser.has("a"),input->totalFrames());
 	int latestFrame = 0;
 	if (parser.has("i"))
 		latestFrame = process->readXMLAnnotationFile(parser.get<string>("i"));
