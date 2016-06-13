@@ -239,10 +239,45 @@ public:
 						annotations[currentFrameN][i].annotateFrame[p] += deltha;
 					}
 				}
-			}	
-		}
+			}
 
-		currentFrameN = frameN;
+		}
+		//else
+		//{
+		//	currentFrameN = frameN;
+		//	int previousFrameAnnoSize = annotations.at(currentFrameN).size();
+		//	int currentFrameAnnoSize = previousFrameAnnoSize;
+		//	try
+		//	{
+		//		previousFrameAnnoSize = annotations.at(currentFrameN - 1).size();
+		//	}
+		//	catch (const std::exception&){}				
+		//	if (previousFrameAnnoSize > currentFrameAnnoSize && tracking)
+		//	{
+		//		int gap = previousFrameAnnoSize - currentFrameAnnoSize;
+		//		// track the new annotation
+		//		for (int i = 0; i < gap; i++)
+		//		{
+		//			annotations[currentFrameN].push_back(annotations[currentFrameN - 1].at(currentFrameAnnoSize + i - 1));
+		//		}
+
+		//		// propose a new position for the previous annotation frame
+		//		for (size_t i = 0; i < trackers.size(); i++)
+		//		{
+		//			trackers[i]->processFrame(frame);
+		//			Point2f deltha;
+		//			float scale;
+		//			trackers[i]->getTransformation(deltha, scale);
+
+		//			for (size_t p = 0; p < annotations[currentFrameN][i + currentFrameAnnoSize].annotateFrame.size(); p++)
+		//			{
+		//				annotations[currentFrameN][i + currentFrameAnnoSize].annotateFrame[p] += deltha;
+		//			}
+		//		}
+
+		//	}
+		//}
+
 		frame.copyTo(output);
 
 		if (showHelp)
@@ -750,6 +785,10 @@ public:
 			while (getline(myfile, line))
 			{
 				actionType.push_back(line);
+			}
+			if (actionType.size() != 0)
+			{
+				currentActionType = actionType.at(0);
 			}
 			myfile.close();
 			return true;
