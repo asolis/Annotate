@@ -68,6 +68,7 @@ namespace viva
         const static int NONE;
         const static int n;
         const static int c;
+		const static int p;
     };
     
 

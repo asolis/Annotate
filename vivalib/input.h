@@ -78,6 +78,20 @@ namespace viva
          *  @return bool: whenever an image was retrieved or not from the input.
          */
         virtual bool  getFrame(Mat &image) = 0;
+		
+		/**
+		*  Obtain an image frame from the input
+		*  @param image: output image from the input.
+		*  @seek: get the image base on the seek index, seek=1(next frame), seek=0(current frame), seek=-1(previous frame) and so on ...
+		*  @return bool: whenever an image was retrieved or not from the input.
+		*/
+		virtual bool  getFrame(Mat &image, int seek) = 0;
+
+		/**
+		*  Get the total frames number
+		*  @return bool: whenever an image was retrieved or not from the input.
+		*/
+		virtual int totalFrames() = 0;
 
         /**
          *  Virtual desctructor
@@ -167,6 +181,19 @@ namespace viva
          * @param frame: output image frame from the sequence
          */
         bool getFrame(Mat &frame);
+
+		/**
+		* Overrided from Input Base Class. Used to extract a frame from the input sequence.
+		* Returns whether or not a frame was sucessfuly returned.
+		* @param frame: output image frame from the sequence
+		*/
+		bool getFrame(Mat &frame, int seek);
+
+		/**
+		* Overrided from Input Base Class. Used to get the total frame number.
+		* Returns the total frame number.
+		*/
+		int totalFrames();
     };
     
     /**
@@ -193,11 +220,12 @@ namespace viva
     private:
         vector<string>    _filenames;
         vector<string>::iterator _it;
+		int _current_position;
         int _loops;
         bool _opened;
         
         void initialize();
-
+		
     public:
         /**
          * ImageListInput constructor using a directory path
@@ -221,8 +249,20 @@ namespace viva
          * @param frame: output image frame from the sequence
          */
         bool getFrame(Mat &frame);
-    
 
+		/**
+		* Returns whether or not a frame was sucessfuly returned.
+		* @param frame: output image frame from the sequence
+		* @param seek: get the image base on the seek index, seek=1(next frame), seek=0(current frame), seek=-1(previous frame) and so on ...
+		*/
+		bool getFrame(Mat &frame, int seek);
+
+		/**
+		* Overrided from Input Base Class. Used to get the total frame number.
+		* Returns the total frame number.
+		*/
+		int totalFrames();
+			
     };
 }
 

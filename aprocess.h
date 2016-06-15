@@ -85,9 +85,21 @@ public:
                                const Scalar &color = Color::red,
                                int thickness = 2,
                                bool close = true);
-    static void displayPolygonNumber(Mat &image,
+	static void displayPolygonNumber(Mat &image,
+							  const vector<Point2f> &pts,
+							  int number);
+    static void displayPolygonNumberNAction(Mat &image,
                               const vector<Point2f> &pts,
-                              int number);
+                              int number,
+							  string actionType);
+};
+
+struct Annotation
+{
+	vector<Point2f> annotateFrame;
+	int mode;
+	string actionType;
+	int ID;
 };
 
 class AnnotateProcess : public ProcessFrame
@@ -111,20 +123,26 @@ private:
                           Point2f &p3,
                   Point2f &p4);
     void helpHUD(Mat &image);
+	void helpActionHUB(Mat &image);
 
     Point2f centroid(const vector<Point2f> &corners);
 
 
     long currentFrameN;
+	int totalFrame;
     Point2f mousePos;
     Point2f mouseShift;
     int thickness;
     int mode;
     int selection;
+	int peopleAmount;
+	string currentActionType;
     float ratio;
     bool showHelp;
+	bool showActionHelp;
     bool continuity;
     bool tracking;
+	bool actionAnnotating;
 
 
 public:
@@ -136,10 +154,9 @@ public:
         POLY
     };
 
+	vector<vector<Annotation>> annotations;
+	vector<std::string> actionType;
 
-
-    vector<vector<vector<Point2f>>> annotations;
-    vector<vector<int>> modes;
     vector<Point2f> drawing;
 
     vector<Ptr<SKCFDCF>> trackers;
@@ -156,8 +173,11 @@ public:
     AnnotateProcess(float ratioYX = -1.f,
                     int   method  = POLY,
                     bool  cont    =  true,
-                    bool  track   =  true):
+                    bool  track   =  true,
+					bool  action  =  false,
+					int totalFrameN = 0):
                       currentFrameN(-1),
+                      totalFrame(totalFrameN),
                       mousePos(-1,-1),
                       mouseShift(-1,-1),
                       thickness(2),
@@ -165,137 +185,181 @@ public:
                       selection(-1),
                       ratio(ratioYX),
                       showHelp(true),
+					  showActionHelp(false),
                       continuity(cont),
                       tracking(track),
                       annotations(),
-                      modes(),
                       drawing(),
                       trackers(),
-                      currentFrame()
+                      currentFrame(),
+					  currentActionType(""),
+		              peopleAmount(0),
+		              actionAnnotating(action)
     {}
 
 
-    virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
-    {
-        if (currentFrameN != frameN)
-        {
-            /** copy annotations from previous frame to current frame**/
-            if ((continuity || tracking) && frameN > 0)
-            {
-                annotations.push_back(annotations[annotations.size() - 1]);
-                modes.push_back(modes[modes.size() - 1]);
-            }
-            /** create new set of empty annotations for the current frame**/
-            else
-            {
-                vector<vector<Point2f>> tmp;
-                annotations.push_back(tmp);
+	virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
+	{
+		if (frameN >= annotations.size())
+		{
+			// current frame doesn't have any annotation information
+			// create a new annotation base on the previous annotation information
+			
+			/** copy annotations from previous frame to current frame**/
+			if ((continuity || tracking) && frameN > 0)
+			{
+				annotations.push_back(annotations[annotations.size() - 1]);
+			}
+			/** create new set of empty annotations for the current frame**/
+			else
+			{
+				vector<Annotation> tmp;
+				annotations.push_back(tmp);
 
-                vector<int> tmp2;
-                modes.push_back(tmp2);
+				trackers.clear();
+			}
 
-                trackers.clear();
-            }
+			currentFrameN = frameN;
+			frame.copyTo(currentFrame);
 
-            currentFrameN = frameN;
-            frame.copyTo(currentFrame);
+			/** if tracking is selected, propose a new position for the previous
+			frame annotations **/
+
+			if (tracking)
+			{
+				for (size_t i = 0; i < trackers.size(); i++)
+				{
+					trackers[i]->processFrame(frame);
+					Point2f deltha;
+					float scale;
+					trackers[i]->getTransformation(deltha, scale);
+
+					for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
+					{
+						annotations[currentFrameN][i].annotateFrame[p] += deltha;
+					}
+				}
+			}
+
+		}
+		//else
+		//{
+		//	currentFrameN = frameN;
+		//	int previousFrameAnnoSize = annotations.at(currentFrameN).size();
+		//	int currentFrameAnnoSize = previousFrameAnnoSize;
+		//	try
+		//	{
+		//		previousFrameAnnoSize = annotations.at(currentFrameN - 1).size();
+		//	}
+		//	catch (const std::exception&){}				
+		//	if (previousFrameAnnoSize > currentFrameAnnoSize && tracking)
+		//	{
+		//		int gap = previousFrameAnnoSize - currentFrameAnnoSize;
+		//		// track the new annotation
+		//		for (int i = 0; i < gap; i++)
+		//		{
+		//			annotations[currentFrameN].push_back(annotations[currentFrameN - 1].at(currentFrameAnnoSize + i - 1));
+		//		}
+
+		//		// propose a new position for the previous annotation frame
+		//		for (size_t i = 0; i < trackers.size(); i++)
+		//		{
+		//			trackers[i]->processFrame(frame);
+		//			Point2f deltha;
+		//			float scale;
+		//			trackers[i]->getTransformation(deltha, scale);
+
+		//			for (size_t p = 0; p < annotations[currentFrameN][i + currentFrameAnnoSize].annotateFrame.size(); p++)
+		//			{
+		//				annotations[currentFrameN][i + currentFrameAnnoSize].annotateFrame[p] += deltha;
+		//			}
+		//		}
+
+		//	}
+		//}
+
+		currentFrameN = frameN;
+		frame.copyTo(output);
+
+		if (showHelp)
+			helpHUD(output);
+
+		if (showActionHelp)
+			helpActionHUB(output);
 
 
-            /** if tracking is selected, propose a new position for the previous
-                frame annotations **/
+		// display the existed annotation
+		for (int i = 0; i < annotations[currentFrameN].size(); i++)
+		{
+			Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow, thickness, true);
+			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame,
+				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType);
+		}
 
-            if (tracking)
-            {
-                for (size_t i = 0; i < trackers.size(); i++)
-                {
-                    trackers[i]->processFrame(frame);
-                    Point2f deltha;
-                    float scale;
-                    trackers[i]->getTransformation(deltha, scale);
-
-                    for (size_t p = 0; p < annotations[currentFrameN][i].size(); p++)
-                    {
-                        annotations[currentFrameN][i][p] += deltha;
-                    }
-                }
-            }
+		// display the currennt drawing
+		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
 
 
-        }
+		if (mode == POLY)
+		{
+			if (drawing.size() > 0)
+			{
+				line(output, drawing.back(), mousePos,
+					Color::blue, thickness - 1, CV_AA);
+				line(output, mousePos, drawing.front(),
+					Color::red, thickness - 1, CV_AA);
+			}
+		}
 
-        frame.copyTo(output);
+		if (mode == ROTA_RECT)
+		{
+			int pts = drawing.size();
 
-        if (showHelp)
-            helpHUD(output);
-
-        for (int i = 0; i < annotations[currentFrameN].size(); i++)
-        {
-            Draw::displayPolygon(output, annotations[currentFrameN][i], Color::yellow,thickness, true);
-            Draw::displayPolygonNumber(output, annotations[currentFrameN][i], i + 1);
-        }
-
-        Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
-
-
-        if (mode == POLY)
-        {
-            if (drawing.size() > 0)
-            {
-                line(output, drawing.back(), mousePos,
-                     Color::blue, thickness - 1, CV_AA);
-                line(output, mousePos, drawing.front(),
-                     Color::red, thickness - 1 , CV_AA);
-            }
-        }
-        
-        if (mode == ROTA_RECT)
-        {
-            int pts = drawing.size();
-
-            if (pts == 1)
-            {
-                line(output, drawing.front(), mousePos,
-                     Color::blue, thickness - 1, CV_AA);
-            }
-            else if (pts == 2)
-            {
+			if (pts == 1)
+			{
+				line(output, drawing.front(), mousePos,
+					Color::blue, thickness - 1, CV_AA);
+			}
+			else if (pts == 2)
+			{
 
 
-                vector<Point2f> _rRect(4);
-                _rRect[0] = drawing.back();
-                _rRect[1] = drawing.front();
-                getRRect(mousePos, ratio, _rRect[0], _rRect[1], _rRect[2], _rRect[3]);
+				vector<Point2f> _rRect(4);
+				_rRect[0] = drawing.back();
+				_rRect[1] = drawing.front();
+				getRRect(mousePos, ratio, _rRect[0], _rRect[1], _rRect[2], _rRect[3]);
 
-                for (size_t i = 0; i < _rRect.size(); i++)
-                {
-                    line(output, _rRect[i], _rRect[(i + 1)% 4],
-                         (i==0)? Color::red : Color::blue,
-                         (i==0)? thickness  : thickness - 1, CV_AA);
-                }
+				for (size_t i = 0; i < _rRect.size(); i++)
+				{
+					line(output, _rRect[i], _rRect[(i + 1) % 4],
+						(i == 0) ? Color::red : Color::blue,
+						(i == 0) ? thickness : thickness - 1, CV_AA);
+				}
 
-                circle(output, _rRect[2], thickness, Color::green);
+				circle(output, _rRect[2], thickness, Color::green);
 
-                if (ratio > 0)
-                    circle(output,  _rRect[0], thickness, Color::yellow);
+				if (ratio > 0)
+					circle(output, _rRect[0], thickness, Color::yellow);
 
-            }
-        }
+			}
+		}
 
-        if (mode == AXIS_RECT)
-        {
-            if (drawing.size() == 1)
-            {
-                vector<Point2f> _aRect(4);
-                _aRect[0] = drawing.front();
-                getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
-                rectangle(output,_aRect[0],
-                          _aRect[2],
-                          Color::blue,
-                          thickness - 1,
-                          CV_AA);
-                circle(output, _aRect[2], thickness - 1, Color::green);
-            }
-        }
+		if (mode == AXIS_RECT)
+		{
+			if (drawing.size() == 1)
+			{
+				vector<Point2f> _aRect(4);
+				_aRect[0] = drawing.front();
+				getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
+				rectangle(output, _aRect[0],
+					_aRect[2],
+					Color::blue,
+					thickness - 1,
+					CV_AA);
+				circle(output, _aRect[2], thickness - 1, Color::green);
+			}
+		}
+		
     };
 
     /**
@@ -398,7 +462,7 @@ public:
                 if (!annotations[currentFrameN].empty())
                 {
                     annotations[currentFrameN].pop_back();
-                    if (tracking && !trackers.empty())
+					if (tracking && !trackers.empty())
                         trackers.pop_back();
                 }
             }
@@ -411,21 +475,28 @@ public:
             {
                 drawing.pop_back();
             }
-            if (!drawing.empty())
-                drawing.pop_back();
+			if (!drawing.empty())
+			{
+				drawing.pop_back();
+			}
+                
         }
         if (key == 'c' || key == 'C')
         {
             drawing.clear();
+
             while (!annotations[currentFrameN].empty())
                 annotations[currentFrameN].pop_back();
 
             if (tracking)
                 trackers.clear();
         }
-        if (key == 'h' || key == 'H')
-            showHelp = !showHelp;
-
+		if (key == 'h' || key == 'H')
+		{
+			showHelp = !showHelp;
+			showActionHelp = false;
+		}
+            
         if (key == 'd' || key == 'D')
         {
             remAnnotation();
@@ -450,6 +521,19 @@ public:
         {
             ratio += .1;
         }
+
+		if (actionAnnotating && (key == 'l' || key == 'L'))
+		{
+			// add the action annotation code
+			showActionHelp = !showActionHelp;
+			showHelp = false;
+		}
+
+		for (int i = 0; i < actionType.size(); i++)
+		{
+			if (key == ('0' + i))
+				currentActionType = actionType.at(i);
+		}
     };
 
     virtual void newTracker()
@@ -472,6 +556,7 @@ public:
             }
         }
     }
+
     virtual void remTracker(int i)
     {
         if (tracking && i >= 0 && i < trackers.size())
@@ -485,7 +570,6 @@ public:
         if (selection >= 0 && selection < annotations[currentFrameN].size())
         {
             annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
-            modes[currentFrameN].erase(modes[currentFrameN].begin() + selection);
             trackers.erase(trackers.begin() + selection);
         }
         drawing.clear();
@@ -496,19 +580,26 @@ public:
     {
         if (acceptPolygon(drawing, mode))
         {
+			Annotation tmp;
             if (selection < 0)
             {
-                annotations[currentFrameN].push_back(drawing);
-                modes[currentFrameN].push_back(mode);
+				tmp.annotateFrame = drawing;
+				tmp.mode = mode;
+				tmp.actionType = currentActionType;
+				tmp.ID = peopleAmount++;
+
+                annotations[currentFrameN].push_back(tmp);
             }
             else if (selection >= 0 && selection < annotations[currentFrameN].size() )
             {
-                annotations[currentFrameN][selection] = drawing;
-                modes[currentFrameN][selection] = mode;
+                annotations[currentFrameN][selection].annotateFrame = drawing;
+				annotations[currentFrameN][selection].mode = mode;
+				annotations[currentFrameN][selection].actionType = currentActionType;
             }
             newTracker();
             drawing.clear();
             selection = -1;
+			
         }
     }
 
@@ -521,13 +612,13 @@ public:
 
             for (size_t j = 0; j < annotations[i].size(); j++)
             {
-                for (size_t k = 0; k < annotations[i][j].size(); k++)
+                for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
                 {
 
-                    file << annotations[i][j][k].x * scaleX << ", "
-                         << annotations[i][j][k].y * scaleY;
+                    file << annotations[i][j].annotateFrame[k].x * scaleX << ", "
+                         << annotations[i][j].annotateFrame[k].y * scaleY;
                     
-                    if ( k != (annotations[i][j].size() - 1))
+                    if ( k != (annotations[i][j].annotateFrame.size() - 1))
                         file << ", ";
                 }
                 if ( j != (annotations[i].size() - 1))
@@ -541,42 +632,52 @@ public:
 	{
 		ofstream file;
 		file.open(filename);
-		// defaults type is char
 		xml_document<> doc;
+
+		// add the xml declaration
+		xml_node<>* decl = doc.allocate_node(node_declaration);
+		decl->append_attribute(doc.allocate_attribute("version", "1.0"));
+		decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+		doc.append_node(decl);
+
+		// create the root node
+		xml_node<>* root = doc.allocate_node(node_element, "video");
+		doc.append_node(root);
+		allocateAttrToNodeXML(doc, root, "totalPeopleAmount", std::to_string(peopleAmount));
 
 		for (size_t i = 0; i < annotations.size(); i++)
 		{
 			xml_node<> *node = doc.allocate_node(node_element, "frame");
-			doc.append_node(node);
+			root->append_node(node);
 			// write the frame number
-			std::string frameNumber = std::to_string(i);
-			char *frameNumberChar = doc.allocate_string(frameNumber.c_str());
-			xml_attribute<> *attr = doc.allocate_attribute("frameNumber", frameNumberChar);
-			node->append_attribute(attr);
-
+			allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
+			
 			for (size_t j = 0; j < annotations[i].size(); j++)
 			{
 				xml_node<> *sub_node = doc.allocate_node(node_element, "box");
 				node->append_node(sub_node);
 
-				std::string boxNumber = std::to_string(j);
-				char *boxNumberChar = doc.allocate_string(boxNumber.c_str());
-				attr = doc.allocate_attribute("boxNumber", boxNumberChar);
-				sub_node->append_attribute(attr);
+				// add the box number of one frame
+				// allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
+				
+				// add the person ID
+				allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
 
-				for (size_t k = 0; k < annotations[i][j].size(); k++)
+				// add the action type for this box
+				allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
+				
+				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
 				{					
-					std::string pointNum = "pointNumber:";
+					std::string pointNum = "pointNumber";
 					pointNum += std::to_string(k);
 					char *pointNumChar = doc.allocate_string(pointNum.c_str());
 
-					std::string pointValue = std::to_string(annotations[i][j][k].x * scaleX);
+					std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
 					pointValue += ",";
-					pointValue += std::to_string(annotations[i][j][k].y * scaleY);
-					char *pointValueChar = doc.allocate_string(pointValue.c_str());
-
-					attr = doc.allocate_attribute(pointNumChar, pointValueChar);
-					sub_node->append_attribute(attr);
+					pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
+					
+					// add the pointNumber information
+					allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
 				}
 			}
 		}
@@ -586,7 +687,121 @@ public:
 		file.close();
 	}
 
-    static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
+	virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value)
+	{
+		// convert string to char
+		char *CharTmp = doc.allocate_string(value.c_str());
+		xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
+		node->append_attribute(attr);
+	}
+
+	virtual int readXMLAnnotationFile(const string &filename) 
+	{
+		string input_xml;
+		std::string line;
+		std::ifstream in(filename);
+		// read the file into input_XML
+		while (getline(in, line))
+			input_xml += line;
+
+		if (input_xml == "")
+			return 0;
+
+		vector<char> xml_copy(input_xml.begin(), input_xml.end());
+		xml_copy.push_back('\0');
+
+		xml_document<> doc;
+		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
+
+		annotations.clear();
+		drawing.clear();
+		trackers.clear();
+
+		// parse the root node
+		xml_node<>* cur_node = doc.first_node("video");
+		peopleAmount = atoi(cur_node->first_attribute()->value());
+
+		// frame loop
+		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
+		{
+			vector<Annotation> instance;
+			currentFrameN = atoi(frame_node->first_attribute()->value());
+
+			// box loop
+			for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
+			{
+				Annotation tmp;
+				vector<Point2f> pts;
+				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
+				{
+					if (strcmp(point->name(), "actionType") == 0) 
+					{
+						tmp.actionType = point->value();
+						continue; 
+					}
+
+					if (strcmp(point->name(), "mode") == 0)
+					{
+						tmp.mode = atoi(point->value());
+						continue;
+					}
+					
+					if (strcmp(point->name(), "personID") == 0)
+					{
+						tmp.ID = atoi(point->value());
+						continue;
+					}
+
+					std::string tmp(point->name());
+					if (tmp.find("pointNumber") == string::npos) { continue; }
+					char *value = point->value();
+					// parse the value
+					char value_array[50];
+					strncpy(value_array, value, sizeof(value_array));
+					char *single_axis = strtok(value_array, ",");
+					std::vector<char*> xy;
+					while (NULL != single_axis)
+					{
+						xy.push_back(single_axis);
+						single_axis = strtok(NULL, ",");
+					}
+					pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
+				}
+				tmp.annotateFrame = pts;
+				instance.push_back(tmp);
+			}
+
+			annotations.push_back(instance);
+		}
+
+		return currentFrameN;
+	}
+
+	virtual bool readActionTypeFile(const string &filename)
+	{
+		string line;
+		ifstream myfile(filename);
+		if (myfile.is_open())
+		{
+			while (getline(myfile, line))
+			{
+				actionType.push_back(line);
+			}
+			if (actionType.size() != 0)
+			{
+				currentActionType = actionType.at(0);
+			}
+			myfile.close();
+			return true;
+		}
+		else
+		{
+			cout << "Unable to open file";
+			return false;
+		}
+	}
+
+	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
     {
         ifstream file;
         file.open(filename);
@@ -638,13 +853,16 @@ public:
 		xml_copy.push_back('\0');
 
 		xml_document<> doc;
-		doc.parse<parse_declaration_node | parse_no_data_nodes>(&xml_copy[0]);
+		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
 
 		long lcount = 0;
 		_data.clear();
 		
+		// parse the root node
+		xml_node<>* cur_node = doc.first_node("video");
+
 		// frame loop
-		for (xml_node<> *frame_node = doc.first_node(); frame_node; frame_node = frame_node->next_sibling())
+		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
 		{
 			vector<vector<Point2f>> _line;
 			_data.push_back(_line);
@@ -654,7 +872,8 @@ public:
 				vector<Point2f> pts;
 				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
 				{
-					if (strcmp(point->name(), "boxNumber") == 0) { continue; }
+					std::string tmp(point->name());
+					if (tmp.find("pointNumber") == string::npos) { continue; }
 					char *value = point->value();
 					// parse the value
 					char value_array[50];

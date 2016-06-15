@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<video totalPeopleAmount="3">
+	<frame frameNumber="0">
+		<box personID="0" actionType="waiting" pointNumber0="42.000000,191.000000" pointNumber1="166.000000,191.000000" pointNumber2="166.000000,323.000000" pointNumber3="42.000000,323.000000"/>
+		<box personID="1" actionType="ordering" pointNumber0="205.000000,164.000000" pointNumber1="345.000000,164.000000" pointNumber2="345.000000,350.000000" pointNumber3="205.000000,350.000000"/>
+		<box personID="2" actionType="leaving" pointNumber0="262.000000,42.000000" pointNumber1="355.000000,42.000000" pointNumber2="355.000000,121.000000" pointNumber3="262.000000,121.000000"/>
+	</frame>
+	<frame frameNumber="1">
+		<box personID="0" actionType="waiting" pointNumber0="42.000000,191.000000" pointNumber1="166.000000,191.000000" pointNumber2="166.000000,323.000000" pointNumber3="42.000000,323.000000"/>
+		<box personID="1" actionType="ordering" pointNumber0="205.000000,164.000000" pointNumber1="345.000000,164.000000" pointNumber2="345.000000,350.000000" pointNumber3="205.000000,350.000000"/>
+		<box personID="2" actionType="leaving" pointNumber0="262.000000,42.000000" pointNumber1="355.000000,42.000000" pointNumber2="355.000000,121.000000" pointNumber3="262.000000,121.000000"/>
+	</frame>
+	<frame frameNumber="2">
+		<box personID="0" actionType="waiting" pointNumber0="42.000000,191.000000" pointNumber1="166.000000,191.000000" pointNumber2="166.000000,323.000000" pointNumber3="42.000000,323.000000"/>
+		<box personID="1" actionType="ordering" pointNumber0="205.000000,164.000000" pointNumber1="345.000000,164.000000" pointNumber2="345.000000,350.000000" pointNumber3="205.000000,350.000000"/>
+		<box personID="2" actionType="leaving" pointNumber0="262.000000,42.000000" pointNumber1="355.000000,42.000000" pointNumber2="355.000000,121.000000" pointNumber3="262.000000,121.000000"/>
+	</frame>
+</video>
+

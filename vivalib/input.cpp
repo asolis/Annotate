@@ -106,7 +106,16 @@ bool VideoInput::getFrame(Mat &frame)
     
     return true;
 }
-
+bool VideoInput::getFrame(Mat &frame, int seek)
+{
+	// TO-DO : get the frame according to the seek number
+	// This function performs the same behaviour as the origin getFrame function
+	return getFrame(frame);
+}
+int VideoInput::totalFrames()
+{
+	return _CameraInput.get(CV_CAP_PROP_FRAME_COUNT);
+}
 
 ImageListInput::ImageListInput(const string directory, const Size &size, int colorFlag, int loops ):
 Input(size, colorFlag), _loops(loops)
@@ -119,19 +128,19 @@ Input(size, colorFlag), _filenames(files), _loops(loops)
 {
     initialize();
 }
-
 void ImageListInput::initialize()
 {
     if (_filenames.size() < 1)
     {
         _it = _filenames.end();
+		_current_position = 0;
         _opened = false;
         return;
     }
     _it = _filenames.begin();
+	_current_position = 0;
     _opened = true;
 }
-
 bool ImageListInput::getFrame(Mat &frame)
 {
     if (_it == _filenames.end() && (_loops > 0 || _loops < 0))
@@ -170,4 +179,47 @@ bool ImageListInput::getFrame(Mat &frame)
     }
     return false;
 }
+bool ImageListInput::getFrame(Mat &frame, int seek)
+{
+	// move the position
+	_current_position += seek;
 
+	// check if the _current_position out of range
+	if (_current_position < 0 || _current_position >= _filenames.size())
+	{
+		// return false and do nothing
+		return false;
+	}
+
+	// read the image
+	frame = imread(_filenames.at(_current_position));
+
+	_orgSize = frame.size();
+	if (_size.width < 0 && _size.height < 0)
+	{
+
+	}
+	else if (_size.width < 0 && _size.height > 0)
+	{
+		resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
+	}
+	else if (_size.width > 0 && _size.height < 0)
+	{
+		resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
+	}
+	else if (_size.width != frame.cols && _size.height != frame.rows)
+	{
+		resize(frame, frame, _size);
+	}
+	if (_convert)
+		cvtColor(frame, frame, _conversionFlag);
+
+	_size.width = frame.cols;
+	_size.height = frame.rows;
+
+	return true;
+}
+int ImageListInput::totalFrames()
+{
+	return _filenames.size();
+}

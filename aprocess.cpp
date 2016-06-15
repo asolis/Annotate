@@ -154,8 +154,9 @@ bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 }
 void AnnotateProcess::swapPolygon(int i)
 {
-    swap(drawing, annotations[currentFrameN][i]);
-    swap(mode, modes[currentFrameN][i]);
+	swap(drawing, annotations[currentFrameN][i].annotateFrame);
+	swap(mode, annotations[currentFrameN][i].mode);
+	swap(currentActionType, annotations[currentFrameN][i].actionType);
 }
 bool AnnotateProcess::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
 {
@@ -166,7 +167,7 @@ int AnnotateProcess::findIndexOfPolygonContainingPt(const Point2f &pt)
     int found = -1;
     for ( size_t i = 0; i < annotations[currentFrameN].size(); i++)
     {
-        if (ptInsidePolygon(pt, annotations[currentFrameN][i]))
+        if (ptInsidePolygon(pt, annotations[currentFrameN][i].annotateFrame))
             return i;
     }
     return found;
@@ -179,6 +180,27 @@ Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Po
 
 void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number)
 {
+	if (pts.size() > 0)
+	{
+		auto ref = std::min_element(pts.begin(), pts.end(),
+			[](const Point2f &p1, const Point2f &p2)
+		{
+			return p1.y < p2.y;
+		});
+
+		rectangle(image, *ref - Point2f(0, 10),
+			*ref + Point2f(70, 0),
+			Color::yellow, -1);
+
+		string display = "";
+		display += to_string(number);
+		putText(image, display, *ref - Point2f(0, 2),
+			FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
+	}
+}
+
+void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, int number, string actionType)
+{
     if (pts.size() > 0)
     {
         auto ref = std::min_element(pts.begin(), pts.end(),
@@ -188,9 +210,14 @@ void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int numb
                                   });
 
         rectangle(image, *ref - Point2f(0,10),
-                         *ref + Point2f(15,0),
+                         *ref + Point2f(70,0),
                         Color::yellow, -1);
-        putText(image, to_string(number), *ref - Point2f(0,2),
+
+		string display = "";
+		display += to_string(number);
+		display += " - ";
+		display += actionType;
+        putText(image, display, *ref - Point2f(0,2),
                 FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
     }
 }
@@ -206,6 +233,7 @@ void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &
         line(image, pts[i], pts[0],
              color, thickness, CV_AA );
 }
+
 void AnnotateProcess::getRRect(const Point2f &mPos, float ratio,
               Point2f &p1,
               Point2f &p2,
@@ -265,7 +293,7 @@ void AnnotateProcess::helpHUD(Mat &image)
 
     int margin = 10;
     int fsize  = 20;
-    int characterWidth  = 20;
+    int characterWidth  = 15;
 
     if (mode == AXIS_RECT)
         ss << "Axis Align Rectangle ";
@@ -278,11 +306,16 @@ void AnnotateProcess::helpHUD(Mat &image)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
+	help.push_back(" Annotation Number : " + std::to_string(annotations.at(currentFrameN).size()));
+	help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (-) : Reduce ratio 0.1");
     help.push_back(" (+) : Increase ratio 0.1");
     help.push_back(" (h) : Toggle this help ");
     help.push_back(" (n) : Next frame");
+	if(actionAnnotating)
+		help.push_back(" (l) : Get the action class list");
     help.push_back(" (a) : Accept annotation");
     help.push_back(" (d) : Delete annotation");
     help.push_back(" (b) : Remove last point/annotation");
@@ -307,6 +340,50 @@ void AnnotateProcess::helpHUD(Mat &image)
     }
 
 }
+
+void AnnotateProcess::helpActionHUB(Mat &image) 
+{
+	int margin = 10;
+	int fsize = 15;
+	int characterWidth = 13;
+
+	vector<string> help;
+	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
+	help.push_back(" Annotation Number : " + std::to_string(annotations.at(currentFrameN).size()));
+	help.push_back(" Options:");
+	for (int i = 0; i < actionType.size(); i++)
+	{
+		help.push_back(" (" + std::to_string(i) + ") : " + actionType.at(i));
+	}
+
+	Rect region(0, 0, characterWidth * fsize + margin,
+		help.size() * fsize + margin);
+	region &= Rect(0, 0, image.cols, image.rows);
+
+	GaussianBlur(image(region),
+		image(region),
+		Size(0, 0), 5);
+
+	for (int i = 0, h = fsize; i < help.size(); i++, h += fsize)
+	{
+		if ((i-3) < 0)
+		{
+			putText(image, help[i], Point(fsize, h),
+				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+		} 
+		else if (currentActionType == actionType.at(i-3))
+		{
+			putText(image, help[i], Point(fsize, h),
+				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
+		}
+		else
+		{
+			putText(image, help[i], Point(fsize, h),
+				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+		}
+	}
+}
+
 Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
 {
     Moments mu = moments(corners);
