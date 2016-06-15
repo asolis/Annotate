@@ -366,12 +366,12 @@ void AnnotateProcess::helpActionHUB(Mat &image)
 
 	for (int i = 0, h = fsize; i < help.size(); i++, h += fsize)
 	{
-		if ((i-2) < 0)
+		if ((i-3) < 0)
 		{
 			putText(image, help[i], Point(fsize, h),
 				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
 		} 
-		else if (currentActionType == actionType.at(i-2))
+		else if (currentActionType == actionType.at(i-3))
 		{
 			putText(image, help[i], Point(fsize, h),
 				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);

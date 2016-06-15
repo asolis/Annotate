@@ -278,6 +278,7 @@ public:
 		//	}
 		//}
 
+		currentFrameN = frameN;
 		frame.copyTo(output);
 
 		if (showHelp)
