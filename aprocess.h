@@ -631,9 +631,6 @@ public:
 
     virtual int read(const string &filename) = 0;
 
-
-
-    virtual void parse(const string &filename, vector<vector<vector<Point2f>>> &_data) = 0;
 };
 
 
@@ -660,7 +657,56 @@ public:
 
 
     virtual int read(const string &filename)
-    { }
+    {
+        ifstream file;
+        file.open(filename);
+        string line;
+
+        vector<vector<vector<Point2f>>> _data;
+
+        _data.clear();
+
+        annotations.clear();
+        drawing.clear();
+        trackers.clear();
+
+        currentFrameN = 0;
+
+        while (file)
+        {
+            if (!getline(file, line)) break;
+
+            currentFrameN++;
+
+            istringstream streamline(line);
+            string annotation;
+
+            vector<vector<Point2f>> _line;
+            _data.push_back(_line);
+
+            vector<Annotation> list;
+            while (getline(streamline, annotation, '|'))
+            {
+                Annotation tmp;
+
+                istringstream streamannot(annotation);
+                string x, y;
+                while (getline(streamannot, x, ',') &&
+                       getline(streamannot, y, ',') )
+                {
+                    tmp.annotateFrame.push_back(Point2f(atof(x.c_str()),
+                                          atof(y.c_str())));
+                }
+                list.push_back(tmp);
+                streamannot.clear();
+            }
+            annotations.push_back(list);
+            streamline.clear();
+
+        }
+        file.close();
+        return (currentFrameN)?currentFrameN - 1 : currentFrameN;
+    }
 
     virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
     {
@@ -685,46 +731,6 @@ public:
             }
             file << endl;
         }
-    }
-
-    
-    virtual void parse(const string &filename, vector<vector<vector<Point2f>>> &_data)
-    {
-        ifstream file;
-        file.open(filename);
-        string line;
-        long lcount = 0;
-        
-        _data.clear();
-        while (file)
-        {
-            if (!getline(file, line)) break;
-            
-            istringstream streamline(line);
-            string annotation;
-            
-            vector<vector<Point2f>> _line;
-            _data.push_back(_line);
-            
-            while (getline(streamline, annotation, '|'))
-            {
-                istringstream streamannot(annotation);
-                vector<Point2f> pts;
-                string x, y;
-                while (getline(streamannot, x, ',') &&
-                       getline(streamannot, y, ',') )
-                {
-                    pts.push_back(Point2f(atof(x.c_str()),
-                                          atof(y.c_str())));
-                }
-                _data[lcount].push_back(pts);
-                streamannot.clear();
-            }
-            lcount++;
-            streamline.clear();
-            
-        }
-        file.close();
     }
 
 };
@@ -896,60 +902,6 @@ public:
         }
         
         return currentFrameN;
-    }
-
-    
-    virtual void parse(const string &filename, vector<vector<vector<Point2f>>> &_data)
-    {		
-        string input_xml;
-        std::string line;
-        std::ifstream in(filename);
-        // read the file into input_XML
-        while (getline(in, line))
-            input_xml += line;
-        
-        vector<char> xml_copy(input_xml.begin(), input_xml.end());
-        xml_copy.push_back('\0');
-        
-        xml_document<> doc;
-        doc.parse<parse_no_data_nodes>(&xml_copy[0]);
-        
-        long lcount = 0;
-        _data.clear();
-        
-        // parse the root node
-        xml_node<>* cur_node = doc.first_node("video");
-        
-        // frame loop
-        for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
-        {
-            vector<vector<Point2f>> _line;
-            _data.push_back(_line);
-            // box loop
-            for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
-            {
-                vector<Point2f> pts;
-                for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
-                {
-                    std::string tmp(point->name());
-                    if (tmp.find("pointNumber") == string::npos) { continue; }
-                    char *value = point->value();
-                    // parse the value
-                    char value_array[50];
-                    strncpy(value_array, value, sizeof(value_array));
-                    char *single_axis = strtok(value_array, ",");
-                    std::vector<char*> xy;
-                    while (NULL != single_axis)
-                    {
-                        xy.push_back(single_axis);
-                        single_axis = strtok(NULL, ",");
-                    }
-                    pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));					
-                }
-                _data[lcount].push_back(pts);
-            }
-            lcount++;
-        }
     }
 };
 
