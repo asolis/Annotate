@@ -104,7 +104,7 @@ struct Annotation
 
 class AnnotateProcess : public ProcessFrame
 {
-private:
+protected:
     float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
     bool  acceptPolygon(const vector<Point2f> &polyg, int m);
     void  swapPolygon(int i);
@@ -191,8 +191,8 @@ public:
                       annotations(),
                       drawing(),
                       trackers(),
-                      currentFrame(),
 					  currentActionType(""),
+                      currentFrame(),
 		              peopleAmount(0),
 		              actionAnnotating(action)
     {}
@@ -334,62 +334,7 @@ public:
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
-    virtual void leftButtonDown(int x, int y, int flags)
-    {
-        if  (flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY)
-        {
-            mouseShift = Point2f(x,y);
-            selection = findIndexOfPolygonContainingPt(mouseShift);
-            if (selection >= 0)
-            {
-                drawing.clear();
-                swapPolygon(selection);
-            }
-
-        }
-        else
-        {
-            if (mode == AXIS_RECT && drawing.size() == 1)
-            {
-                vector<Point2f> _aRect(4);
-                _aRect[0] = drawing.front();
-                getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
-                drawing.pop_back();
-                drawing.push_back(_aRect[0]);
-                drawing.push_back(_aRect[1]);
-                drawing.push_back(_aRect[2]);
-                drawing.push_back(_aRect[3]);
-
-            }
-            else if (mode == AXIS_RECT && drawing.size() >= 2)
-            {
-                newAnnotation();
-                drawing.push_back(Point2f(x,y));
-            }
-            else if (mode == ROTA_RECT && drawing.size() >= 4)
-            {
-                newAnnotation();
-                drawing.push_back(Point2f(x,y));
-            }
-            else if (mode == ROTA_RECT && drawing.size() == 2)
-            {
-                Point2f p3, p4;
-                getRRect(mousePos, ratio, drawing.back(), drawing.front(), p3, p4);
-                drawing.push_back(p4);
-                drawing.push_back(p3);
-            }
-            else if (mode == ROTA_RECT && drawing.size() == 1)
-            {
-                drawing.push_back(Point2f(x,y));
-            }
-            else
-            {
-                drawing.push_back(Point2f(x,y));
-            }
-
-            mouseShift = centroid(drawing);
-        }
-    };
+    virtual void leftButtonDown(int x, int y, int flags);
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
@@ -401,370 +346,25 @@ public:
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
-    virtual void mouseMove(int x, int y, int flags)
-    {
-        if  ((flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY) &&
-             ptInsidePolygon(Point2f(x,y), drawing))
-        {
-            Point2f vector =  Point2f(x,y) - mouseShift;
-            for(size_t i = 0; i < drawing.size(); i++ )
-                drawing[i]+= vector;
-
-            mouseShift = mouseShift + vector;
-        }
-        mousePos = Point2f(x,y);
-    };
-
+    virtual void mouseMove(int x, int y, int flags);
     /**
      * Inherited from KeyboardListerner. Check KeyboardListener class for details.
      */
-    virtual void keyboardInput(int key)
-    {
-        if (key == 'b' || key == 'B')
-        {
-            if (drawing.empty())
-            {
-                if (!annotations[currentFrameN].empty())
-                {
-					bool deleted = false;
-					int count = 0;
-					// revmove the empty annotation first 
-					for (std::vector<Annotation>::iterator it = annotations[currentFrameN].begin();
-						it != annotations[currentFrameN].end();)
-					{
-						if (it->annotateFrame.size() == 0)
-						{
-							deleted = true;
-							it = annotations[currentFrameN].erase(it);
-						}
-						else 
-						{
-							++it;
-						}
-						count++;
-					}
-					// pop up the latest annotation
-					if (!deleted)
-					{
-						annotations[currentFrameN].pop_back();
-						if (tracking && !trackers.empty())
-							trackers.pop_back();
-					}
-					
-                }
-            }
-            if (mode == AXIS_RECT && drawing.size() == 4)
-            {
-                drawing.pop_back();
-                drawing.pop_back();
-            }
-            if (mode == ROTA_RECT && drawing.size() == 4)
-            {
-                drawing.pop_back();
-            }
-			if (!drawing.empty())
-			{
-				drawing.pop_back();
-			}
-                
-        }
-        if (key == 'c' || key == 'C')
-        {
-            drawing.clear();
+    virtual void keyboardInput(int key);
 
-            while (!annotations[currentFrameN].empty())
-                annotations[currentFrameN].pop_back();
+    virtual void newTracker();
 
-            if (tracking)
-                trackers.clear();
-        }
-		if (key == 'h' || key == 'H')
-		{
-			showHelp = !showHelp;
-			showActionHelp = false;
-		}
-            
-        if (key == 'd' || key == 'D')
-        {
-            remAnnotation();
-            //drawing.clear();
-        }
+    virtual void remTracker(int i);
 
-        if (key == 'a' || key == 'A')
-        {
-            newAnnotation();
-        }
+    virtual void remAnnotation();
 
-        if (key == 'm' || key == 'M')
-        {
-            newAnnotation();
-            mode = (++mode)%3;
-        }
-        if (key == '-')
-        {
-            ratio = max(ratio - .1f , 0.f);
-        }
-        if (key == '+')
-        {
-            ratio += .1;
-        }
+    virtual void newAnnotation();
 
-		if (actionAnnotating && (key == 'l' || key == 'L'))
-		{
-			// add the action annotation code
-			showActionHelp = !showActionHelp;
-			showHelp = false;
-		}
+    virtual bool readActionTypeFile(const string &filename);
 
-		for (int i = 0; i < actionType.size(); i++)
-		{
-			if (key == ('0' + i))
-				currentActionType = actionType.at(i);
-		}
-    };
+    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f) = 0;
 
-    virtual void newTracker()
-    {
-        if (tracking)
-        {
-            Ptr<SKCFDCF> tmp = new SKCFDCF();
-            Rect area = boundingRect(drawing);
-            area.width -= 1;
-            area.height -= 1;
-            tmp->initialize(currentFrame,area);
-
-            if (selection < 0)
-            {
-                trackers.push_back(tmp);
-            }
-            else if (selection >= 0 && selection < trackers.size())
-            {
-                trackers[selection] = tmp;
-            }
-        }
-    }
-
-    virtual void remTracker(int i)
-    {
-        if (tracking && i >= 0 && i < trackers.size())
-        {
-            trackers.erase(trackers.begin() + i);
-        }
-    }
-
-    virtual void remAnnotation()
-    {
-        if (selection >= 0 && selection < annotations[currentFrameN].size())
-        {
-            annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
-            trackers.erase(trackers.begin() + selection);
-        }
-        drawing.clear();
-        selection = -1;
-    }
-
-    virtual void newAnnotation()
-    {
-        if (acceptPolygon(drawing, mode))
-        {
-			Annotation tmp;
-            if (selection < 0)
-            {
-				tmp.annotateFrame = drawing;
-				tmp.mode = mode;
-				tmp.actionType = currentActionType;
-				tmp.ID = peopleAmount++;
-
-                annotations[currentFrameN].push_back(tmp);
-            }
-            else if (selection >= 0 && selection < annotations[currentFrameN].size() )
-            {
-                annotations[currentFrameN][selection].annotateFrame = drawing;
-				annotations[currentFrameN][selection].mode = mode;
-				annotations[currentFrameN][selection].actionType = currentActionType;
-            }
-            newTracker();
-            drawing.clear();
-            selection = -1;
-			
-        }
-    }
-
-    virtual void writeAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
-    {
-        ofstream file;
-        file.open(filename);
-        for (size_t i = 0; i < annotations.size(); i++)
-        {
-
-            for (size_t j = 0; j < annotations[i].size(); j++)
-            {
-                for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
-                {
-
-                    file << annotations[i][j].annotateFrame[k].x * scaleX << ", "
-                         << annotations[i][j].annotateFrame[k].y * scaleY;
-                    
-                    if ( k != (annotations[i][j].annotateFrame.size() - 1))
-                        file << ", ";
-                }
-                if ( j != (annotations[i].size() - 1))
-                    file << "|";
-            }
-            file << endl;
-        }
-    }
-
-	virtual void writeXMLAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
-	{
-		ofstream file;
-		file.open(filename);
-		xml_document<> doc;
-
-		// add the xml declaration
-		xml_node<>* decl = doc.allocate_node(node_declaration);
-		decl->append_attribute(doc.allocate_attribute("version", "1.0"));
-		decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
-		doc.append_node(decl);
-
-		// create the root node
-		xml_node<>* root = doc.allocate_node(node_element, "video");
-		doc.append_node(root);
-		allocateAttrToNodeXML(doc, root, "totalPeopleAmount", std::to_string(peopleAmount));
-
-		for (size_t i = 0; i < annotations.size(); i++)
-		{
-			xml_node<> *node = doc.allocate_node(node_element, "frame");
-			root->append_node(node);
-			// write the frame number
-			allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
-			
-			for (size_t j = 0; j < annotations[i].size(); j++)
-			{
-				xml_node<> *sub_node = doc.allocate_node(node_element, "box");
-				node->append_node(sub_node);
-
-				// add the box number of one frame
-				// allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
-				
-				// add the person ID
-				allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
-
-				// add the action type for this box
-				allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
-				
-				// add the mode for this box
-				allocateAttrToNodeXML(doc, sub_node, "mode", std::to_string(annotations[i][j].mode));
-
-				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
-				{					
-					std::string pointNum = "pointNumber";
-					pointNum += std::to_string(k);
-					char *pointNumChar = doc.allocate_string(pointNum.c_str());
-
-					std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
-					pointValue += ",";
-					pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
-					
-					// add the pointNumber information
-					allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
-				}
-			}
-		}
-
-		// print out the xml document
-		file << doc;
-		file.close();
-	}
-
-	virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value)
-	{
-		// convert string to char
-		char *CharTmp = doc.allocate_string(value.c_str());
-		xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
-		node->append_attribute(attr);
-	}
-
-	virtual int readXMLAnnotationFile(const string &filename) 
-	{
-		string input_xml;
-		std::string line;
-		std::ifstream in(filename);
-		// read the file into input_XML
-		while (getline(in, line))
-			input_xml += line;
-
-		if (input_xml == "")
-			return 0;
-
-		vector<char> xml_copy(input_xml.begin(), input_xml.end());
-		xml_copy.push_back('\0');
-
-		xml_document<> doc;
-		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
-
-		annotations.clear();
-		drawing.clear();
-		trackers.clear();
-
-		// parse the root node
-		xml_node<>* cur_node = doc.first_node("video");
-		peopleAmount = atoi(cur_node->first_attribute()->value());
-
-		// frame loop
-		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
-		{
-			vector<Annotation> instance;
-			currentFrameN = atoi(frame_node->first_attribute()->value());
-
-			// box loop
-			for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
-			{
-				Annotation tmp;
-				vector<Point2f> pts;
-				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
-				{
-					if (strcmp(point->name(), "actionType") == 0) 
-					{
-						tmp.actionType = point->value();
-						continue; 
-					}
-
-					if (strcmp(point->name(), "mode") == 0)
-					{
-						tmp.mode = atoi(point->value());
-						continue;
-					}
-					
-					if (strcmp(point->name(), "personID") == 0)
-					{
-						tmp.ID = atoi(point->value());
-						continue;
-					}
-
-					std::string tmp(point->name());
-					if (tmp.find("pointNumber") == string::npos) { continue; }
-					char *value = point->value();
-					// parse the value
-					char value_array[50];
-					strncpy(value_array, value, sizeof(value_array));
-					char *single_axis = strtok(value_array, ",");
-					std::vector<char*> xy;
-					while (NULL != single_axis)
-					{
-						xy.push_back(single_axis);
-						single_axis = strtok(NULL, ",");
-					}
-					pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
-				}
-				tmp.annotateFrame = pts;
-				instance.push_back(tmp);
-			}
-
-			annotations.push_back(instance);
-		}
-		return currentFrameN;
-	}
+    virtual int read(const string &filename) = 0;
 
 	//virtual void readTrackerFromAnnotation(Mat &Frame)
 	//{
@@ -785,123 +385,59 @@ public:
 
 	//	}
 	//}
-
-	virtual bool readActionTypeFile(const string &filename)
-	{
-		string line;
-		ifstream myfile(filename);
-		if (myfile.is_open())
-		{
-			while (getline(myfile, line))
-			{
-				actionType.push_back(line);
-			}
-			if (actionType.size() != 0)
-			{
-				currentActionType = actionType.at(0);
-			}
-			myfile.close();
-			return true;
-		}
-		else
-		{
-			cout << "Unable to open file";
-			return false;
-		}
-	}
-
-	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
-    {
-        ifstream file;
-        file.open(filename);
-        string line;
-        long lcount = 0;
-
-        _data.clear();
-        while (file)
-        {
-            if (!getline(file, line)) break;
-
-            istringstream streamline(line);
-            string annotation;
-
-            vector<vector<Point2f>> _line;
-            _data.push_back(_line);
-
-            while (getline(streamline, annotation, '|'))
-            {
-                istringstream streamannot(annotation);
-                vector<Point2f> pts;
-                string x, y;
-                while (getline(streamannot, x, ',') &&
-                       getline(streamannot, y, ',') )
-                {
-                    pts.push_back(Point2f(atof(x.c_str()),
-                                          atof(y.c_str())));
-                }
-                _data[lcount].push_back(pts);
-                streamannot.clear();
-            }
-            lcount++;
-            streamline.clear();
-            
-        }
-        file.close();
-    }
-
-	static void parseXMLAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
-	{		
-		string input_xml;
-		std::string line;
-		std::ifstream in(filename);
-		// read the file into input_XML
-		while (getline(in, line))
-			input_xml += line;
-
-		vector<char> xml_copy(input_xml.begin(), input_xml.end());
-		xml_copy.push_back('\0');
-
-		xml_document<> doc;
-		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
-
-		long lcount = 0;
-		_data.clear();
-		
-		// parse the root node
-		xml_node<>* cur_node = doc.first_node("video");
-
-		// frame loop
-		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
-		{
-			vector<vector<Point2f>> _line;
-			_data.push_back(_line);
-			// box loop
-			for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
-			{
-				vector<Point2f> pts;
-				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
-				{
-					std::string tmp(point->name());
-					if (tmp.find("pointNumber") == string::npos) { continue; }
-					char *value = point->value();
-					// parse the value
-					char value_array[50];
-					strncpy(value_array, value, sizeof(value_array));
-					char *single_axis = strtok(value_array, ",");
-					std::vector<char*> xy;
-					while (NULL != single_axis)
-					{
-						xy.push_back(single_axis);
-						single_axis = strtok(NULL, ",");
-					}
-					pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));					
-				}
-				_data[lcount].push_back(pts);
-			}
-			lcount++;
-		}
-	}
 };
 
+
+class CSVAnnotateProcess : public AnnotateProcess
+{
+public:
+
+
+    /*
+     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
+     *                  a negative value will remove any ratio constraint.
+     *                  a positive value > 1 will make the height longer than the width
+     *                  a positive value between 0 and 1 will make the width longer than the height
+     *                  a value of 1 will make a square selection
+     */
+
+    CSVAnnotateProcess(float ratioYX = -1.f,
+                    int   method  = POLY,
+                    bool  cont    =  true,
+                    bool  track   =  true,
+                    bool  action  =  false,
+                       int totalFrameN = 0):AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+    {}
+
+
+    virtual int read(const string &filename);
+    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
+
+};
+
+
+class XMLAnnotateProcess: public AnnotateProcess
+{
+public:
+    /*
+     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
+     *                  a negative value will remove any ratio constraint.
+     *                  a positive value > 1 will make the height longer than the width
+     *                  a positive value between 0 and 1 will make the width longer than the height
+     *                  a value of 1 will make a square selection
+     */
+
+    XMLAnnotateProcess(float ratioYX = -1.f,
+                    int   method  = POLY,
+                    bool  cont    =  true,
+                    bool  track   =  true,
+                    bool  action  =  false,
+                       int totalFrameN = 0): AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+    {}
+
+    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
+    virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value);
+    virtual int read(const string &filename);
+};
 
 #endif
