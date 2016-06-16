@@ -50,7 +50,7 @@ int main(int argc, const char * argv[])
 		"{i import          |           | import xml file (only for image list input)}"
 		"{a actionType      |           | import actionType file}"
 		"{o output          |           | filename for annnotation results}"
-		"{ox outputXML      |           | filename for xml file annotation results}"
+		"{f format          |xml        | choices = xml | csv }"
 
     ;
 
@@ -75,15 +75,31 @@ int main(int argc, const char * argv[])
     string track = parser.get<string>("t");
     bool continuity = (track == "d" || track == "e");
     bool tracking   = (track == "e");
-    Ptr<AnnotateProcess> process =
-                new AnnotateProcess(parser.get<float>("r"),
-                                    method, continuity, tracking, parser.has("a"),input->totalFrames());
+
+    Ptr<AnnotateProcess> process;
+    if (parser.get<string>("f") == "xml")
+    {
+        process = new XMLAnnotateProcess(parser.get<float>("r"),
+                                          method, continuity,
+                                          tracking, parser.has("a"),
+                                          input->totalFrames());
+    }
+    else
+    {
+        process = new CSVAnnotateProcess(parser.get<float>("r"),
+                                      method, continuity,
+                                      tracking, parser.has("a"),
+                                      input->totalFrames());
+    }
+
 	int latestFrame = 0;
 	if (parser.has("i"))
-		latestFrame = process->readXMLAnnotationFile(parser.get<string>("i"));
+		latestFrame = process->read(parser.get<string>("i"));
 
 	if (parser.has("a"))
 		process->readActionTypeFile(parser.get<string>("a"));
+
+
 
 	SeekProcessor processor;
     processor.setInput(input);
@@ -96,21 +112,16 @@ int main(int argc, const char * argv[])
 
 	Size org = input->getOrgSize();
 	Size cur = Size(input->getWidth(), input->getHeight());
+
+
     if (parser.has("o"))
     {        
         string annotations = parser.get<string>("o");
-        process->writeAnnotations(annotations,
+        process->write(annotations,
                                   (float)org.width/(float)cur.width,
                                   (float)org.height/(float)cur.height);
     }
 
-	if (parser.has("ox"))
-	{
-		string annotations = parser.get<string>("ox");
-		process->writeXMLAnnotations(annotations,
-			(float)org.width / (float)cur.width,
-			(float)org.height / (float)cur.height);
-	}
 
     return 0;
 }

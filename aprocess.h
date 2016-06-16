@@ -104,7 +104,7 @@ struct Annotation
 
 class AnnotateProcess : public ProcessFrame
 {
-private:
+protected:
     float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
     bool  acceptPolygon(const vector<Point2f> &polyg, int m);
     void  swapPolygon(int i);
@@ -191,8 +191,8 @@ public:
                       annotations(),
                       drawing(),
                       trackers(),
-                      currentFrame(),
 					  currentActionType(""),
+                      currentFrame(),
 		              peopleAmount(0),
 		              actionAnnotating(action)
     {}
@@ -603,7 +603,66 @@ public:
         }
     }
 
-    virtual void writeAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
+    virtual bool readActionTypeFile(const string &filename)
+    {
+        string line;
+        ifstream myfile(filename);
+        if (myfile.is_open())
+        {
+            while (getline(myfile, line))
+            {
+                actionType.push_back(line);
+            }
+            if (actionType.size() != 0)
+            {
+                currentActionType = actionType.at(0);
+            }
+            myfile.close();
+            return true;
+        }
+        else
+        {
+            cout << "Unable to open file";
+            return false;
+        }
+    }
+
+    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f) = 0;
+
+    virtual int read(const string &filename) = 0;
+
+
+
+    virtual void parse(const string &filename, vector<vector<vector<Point2f>>> &_data) = 0;
+};
+
+
+class CSVAnnotateProcess : public AnnotateProcess
+{
+public:
+
+
+    /*
+     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
+     *                  a negative value will remove any ratio constraint.
+     *                  a positive value > 1 will make the height longer than the width
+     *                  a positive value between 0 and 1 will make the width longer than the height
+     *                  a value of 1 will make a square selection
+     */
+
+    CSVAnnotateProcess(float ratioYX = -1.f,
+                    int   method  = POLY,
+                    bool  cont    =  true,
+                    bool  track   =  true,
+                    bool  action  =  false,
+                       int totalFrameN = 0):AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+    {}
+
+
+    virtual int read(const string &filename)
+    { }
+
+    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
     {
         ofstream file;
         file.open(filename);
@@ -616,8 +675,8 @@ public:
                 {
 
                     file << annotations[i][j].annotateFrame[k].x * scaleX << ", "
-                         << annotations[i][j].annotateFrame[k].y * scaleY;
-                    
+                    << annotations[i][j].annotateFrame[k].y * scaleY;
+
                     if ( k != (annotations[i][j].annotateFrame.size() - 1))
                         file << ", ";
                 }
@@ -628,197 +687,25 @@ public:
         }
     }
 
-	virtual void writeXMLAnnotations(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
-	{
-		ofstream file;
-		file.open(filename);
-		xml_document<> doc;
-
-		// add the xml declaration
-		xml_node<>* decl = doc.allocate_node(node_declaration);
-		decl->append_attribute(doc.allocate_attribute("version", "1.0"));
-		decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
-		doc.append_node(decl);
-
-		// create the root node
-		xml_node<>* root = doc.allocate_node(node_element, "video");
-		doc.append_node(root);
-		allocateAttrToNodeXML(doc, root, "totalPeopleAmount", std::to_string(peopleAmount));
-
-		for (size_t i = 0; i < annotations.size(); i++)
-		{
-			xml_node<> *node = doc.allocate_node(node_element, "frame");
-			root->append_node(node);
-			// write the frame number
-			allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
-			
-			for (size_t j = 0; j < annotations[i].size(); j++)
-			{
-				xml_node<> *sub_node = doc.allocate_node(node_element, "box");
-				node->append_node(sub_node);
-
-				// add the box number of one frame
-				// allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
-				
-				// add the person ID
-				allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
-
-				// add the action type for this box
-				allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
-				
-				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
-				{					
-					std::string pointNum = "pointNumber";
-					pointNum += std::to_string(k);
-					char *pointNumChar = doc.allocate_string(pointNum.c_str());
-
-					std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
-					pointValue += ",";
-					pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
-					
-					// add the pointNumber information
-					allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
-				}
-			}
-		}
-
-		// print out the xml document
-		file << doc;
-		file.close();
-	}
-
-	virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value)
-	{
-		// convert string to char
-		char *CharTmp = doc.allocate_string(value.c_str());
-		xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
-		node->append_attribute(attr);
-	}
-
-	virtual int readXMLAnnotationFile(const string &filename) 
-	{
-		string input_xml;
-		std::string line;
-		std::ifstream in(filename);
-		// read the file into input_XML
-		while (getline(in, line))
-			input_xml += line;
-
-		if (input_xml == "")
-			return 0;
-
-		vector<char> xml_copy(input_xml.begin(), input_xml.end());
-		xml_copy.push_back('\0');
-
-		xml_document<> doc;
-		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
-
-		annotations.clear();
-		drawing.clear();
-		trackers.clear();
-
-		// parse the root node
-		xml_node<>* cur_node = doc.first_node("video");
-		peopleAmount = atoi(cur_node->first_attribute()->value());
-
-		// frame loop
-		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
-		{
-			vector<Annotation> instance;
-			currentFrameN = atoi(frame_node->first_attribute()->value());
-
-			// box loop
-			for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
-			{
-				Annotation tmp;
-				vector<Point2f> pts;
-				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
-				{
-					if (strcmp(point->name(), "actionType") == 0) 
-					{
-						tmp.actionType = point->value();
-						continue; 
-					}
-
-					if (strcmp(point->name(), "mode") == 0)
-					{
-						tmp.mode = atoi(point->value());
-						continue;
-					}
-					
-					if (strcmp(point->name(), "personID") == 0)
-					{
-						tmp.ID = atoi(point->value());
-						continue;
-					}
-
-					std::string tmp(point->name());
-					if (tmp.find("pointNumber") == string::npos) { continue; }
-					char *value = point->value();
-					// parse the value
-					char value_array[50];
-					strncpy(value_array, value, sizeof(value_array));
-					char *single_axis = strtok(value_array, ",");
-					std::vector<char*> xy;
-					while (NULL != single_axis)
-					{
-						xy.push_back(single_axis);
-						single_axis = strtok(NULL, ",");
-					}
-					pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
-				}
-				tmp.annotateFrame = pts;
-				instance.push_back(tmp);
-			}
-
-			annotations.push_back(instance);
-		}
-
-		return currentFrameN;
-	}
-
-	virtual bool readActionTypeFile(const string &filename)
-	{
-		string line;
-		ifstream myfile(filename);
-		if (myfile.is_open())
-		{
-			while (getline(myfile, line))
-			{
-				actionType.push_back(line);
-			}
-			if (actionType.size() != 0)
-			{
-				currentActionType = actionType.at(0);
-			}
-			myfile.close();
-			return true;
-		}
-		else
-		{
-			cout << "Unable to open file";
-			return false;
-		}
-	}
-
-	static void parseAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
+    
+    virtual void parse(const string &filename, vector<vector<vector<Point2f>>> &_data)
     {
         ifstream file;
         file.open(filename);
         string line;
         long lcount = 0;
-
+        
         _data.clear();
         while (file)
         {
             if (!getline(file, line)) break;
-
+            
             istringstream streamline(line);
             string annotation;
-
+            
             vector<vector<Point2f>> _line;
             _data.push_back(_line);
-
+            
             while (getline(streamline, annotation, '|'))
             {
                 istringstream streamannot(annotation);
@@ -840,59 +727,230 @@ public:
         file.close();
     }
 
-	static void parseXMLAnnotations(const string &filename, vector<vector<vector<Point2f>>> &_data)
-	{		
-		string input_xml;
-		std::string line;
-		std::ifstream in(filename);
-		// read the file into input_XML
-		while (getline(in, line))
-			input_xml += line;
-
-		vector<char> xml_copy(input_xml.begin(), input_xml.end());
-		xml_copy.push_back('\0');
-
-		xml_document<> doc;
-		doc.parse<parse_no_data_nodes>(&xml_copy[0]);
-
-		long lcount = 0;
-		_data.clear();
-		
-		// parse the root node
-		xml_node<>* cur_node = doc.first_node("video");
-
-		// frame loop
-		for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
-		{
-			vector<vector<Point2f>> _line;
-			_data.push_back(_line);
-			// box loop
-			for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
-			{
-				vector<Point2f> pts;
-				for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
-				{
-					std::string tmp(point->name());
-					if (tmp.find("pointNumber") == string::npos) { continue; }
-					char *value = point->value();
-					// parse the value
-					char value_array[50];
-					strncpy(value_array, value, sizeof(value_array));
-					char *single_axis = strtok(value_array, ",");
-					std::vector<char*> xy;
-					while (NULL != single_axis)
-					{
-						xy.push_back(single_axis);
-						single_axis = strtok(NULL, ",");
-					}
-					pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));					
-				}
-				_data[lcount].push_back(pts);
-			}
-			lcount++;
-		}
-	}
 };
 
+
+class XMLAnnotateProcess: public AnnotateProcess
+{
+public:
+    /*
+     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
+     *                  a negative value will remove any ratio constraint.
+     *                  a positive value > 1 will make the height longer than the width
+     *                  a positive value between 0 and 1 will make the width longer than the height
+     *                  a value of 1 will make a square selection
+     */
+
+    XMLAnnotateProcess(float ratioYX = -1.f,
+                    int   method  = POLY,
+                    bool  cont    =  true,
+                    bool  track   =  true,
+                    bool  action  =  false,
+                       int totalFrameN = 0): AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+    {}
+
+    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f)
+    {
+        ofstream file;
+        file.open(filename);
+        xml_document<> doc;
+
+        // add the xml declaration
+        xml_node<>* decl = doc.allocate_node(node_declaration);
+        decl->append_attribute(doc.allocate_attribute("version", "1.0"));
+        decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+        doc.append_node(decl);
+
+        // create the root node
+        xml_node<>* root = doc.allocate_node(node_element, "video");
+        doc.append_node(root);
+        allocateAttrToNodeXML(doc, root, "totalPeopleAmount", std::to_string(peopleAmount));
+
+        for (size_t i = 0; i < annotations.size(); i++)
+        {
+            xml_node<> *node = doc.allocate_node(node_element, "frame");
+            root->append_node(node);
+            // write the frame number
+            allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
+
+            for (size_t j = 0; j < annotations[i].size(); j++)
+            {
+                xml_node<> *sub_node = doc.allocate_node(node_element, "box");
+                node->append_node(sub_node);
+
+                // add the box number of one frame
+                // allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
+
+                // add the person ID
+                allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
+
+                // add the action type for this box
+                allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
+
+                for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
+                {
+                    std::string pointNum = "pointNumber";
+                    pointNum += std::to_string(k);
+                    char *pointNumChar = doc.allocate_string(pointNum.c_str());
+
+                    std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
+                    pointValue += ",";
+                    pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
+
+                    // add the pointNumber information
+                    allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
+                }
+            }
+        }
+
+        // print out the xml document
+        file << doc;
+        file.close();
+    }
+
+    virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value)
+    {
+        // convert string to char
+        char *CharTmp = doc.allocate_string(value.c_str());
+        xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
+        node->append_attribute(attr);
+    }
+
+    virtual int read(const string &filename)
+    {
+        string input_xml;
+        std::string line;
+        std::ifstream in(filename);
+        // read the file into input_XML
+        while (getline(in, line))
+            input_xml += line;
+
+        if (input_xml == "")
+            return 0;
+
+        vector<char> xml_copy(input_xml.begin(), input_xml.end());
+        xml_copy.push_back('\0');
+
+        xml_document<> doc;
+        doc.parse<parse_no_data_nodes>(&xml_copy[0]);
+
+        annotations.clear();
+        drawing.clear();
+        trackers.clear();
+
+        // parse the root node
+        xml_node<>* cur_node = doc.first_node("video");
+        peopleAmount = atoi(cur_node->first_attribute()->value());
+
+        // frame loop
+        for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
+        {
+            vector<Annotation> instance;
+            currentFrameN = atoi(frame_node->first_attribute()->value());
+
+            // box loop
+            for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
+            {
+                Annotation tmp;
+                vector<Point2f> pts;
+                for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
+                {
+                    if (strcmp(point->name(), "actionType") == 0)
+                    {
+                        tmp.actionType = point->value();
+                        continue;
+                    }
+
+                    if (strcmp(point->name(), "mode") == 0)
+                    {
+                        tmp.mode = atoi(point->value());
+                        continue;
+                    }
+
+                    if (strcmp(point->name(), "personID") == 0)
+                    {
+                        tmp.ID = atoi(point->value());
+                        continue;
+                    }
+
+                    std::string tmp(point->name());
+                    if (tmp.find("pointNumber") == string::npos) { continue; }
+                    char *value = point->value();
+                    // parse the value
+                    char value_array[50];
+                    strncpy(value_array, value, sizeof(value_array));
+                    char *single_axis = strtok(value_array, ",");
+                    std::vector<char*> xy;
+                    while (NULL != single_axis)
+                    {
+                        xy.push_back(single_axis);
+                        single_axis = strtok(NULL, ",");
+                    }
+                    pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
+                }
+                tmp.annotateFrame = pts;
+                instance.push_back(tmp);
+            }
+            
+            annotations.push_back(instance);
+        }
+        
+        return currentFrameN;
+    }
+
+    
+    virtual void parse(const string &filename, vector<vector<vector<Point2f>>> &_data)
+    {		
+        string input_xml;
+        std::string line;
+        std::ifstream in(filename);
+        // read the file into input_XML
+        while (getline(in, line))
+            input_xml += line;
+        
+        vector<char> xml_copy(input_xml.begin(), input_xml.end());
+        xml_copy.push_back('\0');
+        
+        xml_document<> doc;
+        doc.parse<parse_no_data_nodes>(&xml_copy[0]);
+        
+        long lcount = 0;
+        _data.clear();
+        
+        // parse the root node
+        xml_node<>* cur_node = doc.first_node("video");
+        
+        // frame loop
+        for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
+        {
+            vector<vector<Point2f>> _line;
+            _data.push_back(_line);
+            // box loop
+            for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
+            {
+                vector<Point2f> pts;
+                for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
+                {
+                    std::string tmp(point->name());
+                    if (tmp.find("pointNumber") == string::npos) { continue; }
+                    char *value = point->value();
+                    // parse the value
+                    char value_array[50];
+                    strncpy(value_array, value, sizeof(value_array));
+                    char *single_axis = strtok(value_array, ",");
+                    std::vector<char*> xy;
+                    while (NULL != single_axis)
+                    {
+                        xy.push_back(single_axis);
+                        single_axis = strtok(NULL, ",");
+                    }
+                    pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));					
+                }
+                _data[lcount].push_back(pts);
+            }
+            lcount++;
+        }
+    }
+};
 
 #endif
