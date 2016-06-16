@@ -242,41 +242,6 @@ public:
 			}
 
 		}
-		//else
-		//{
-		//	currentFrameN = frameN;
-		//	int previousFrameAnnoSize = annotations.at(currentFrameN).size();
-		//	int currentFrameAnnoSize = previousFrameAnnoSize;
-		//	try
-		//	{
-		//		previousFrameAnnoSize = annotations.at(currentFrameN - 1).size();
-		//	}
-		//	catch (const std::exception&){}				
-		//	if (previousFrameAnnoSize > currentFrameAnnoSize && tracking)
-		//	{
-		//		int gap = previousFrameAnnoSize - currentFrameAnnoSize;
-		//		// track the new annotation
-		//		for (int i = 0; i < gap; i++)
-		//		{
-		//			annotations[currentFrameN].push_back(annotations[currentFrameN - 1].at(currentFrameAnnoSize + i - 1));
-		//		}
-
-		//		// propose a new position for the previous annotation frame
-		//		for (size_t i = 0; i < trackers.size(); i++)
-		//		{
-		//			trackers[i]->processFrame(frame);
-		//			Point2f deltha;
-		//			float scale;
-		//			trackers[i]->getTransformation(deltha, scale);
-
-		//			for (size_t p = 0; p < annotations[currentFrameN][i + currentFrameAnnoSize].annotateFrame.size(); p++)
-		//			{
-		//				annotations[currentFrameN][i + currentFrameAnnoSize].annotateFrame[p] += deltha;
-		//			}
-		//		}
-
-		//	}
-		//}
 
 		currentFrameN = frameN;
 		frame.copyTo(output);
@@ -461,9 +426,31 @@ public:
             {
                 if (!annotations[currentFrameN].empty())
                 {
-                    annotations[currentFrameN].pop_back();
-					if (tracking && !trackers.empty())
-                        trackers.pop_back();
+					bool deleted = false;
+					int count = 0;
+					// revmove the empty annotation first 
+					for (std::vector<Annotation>::iterator it = annotations[currentFrameN].begin();
+						it != annotations[currentFrameN].end();)
+					{
+						if (it->annotateFrame.size() == 0)
+						{
+							deleted = true;
+							it = annotations[currentFrameN].erase(it);
+						}
+						else 
+						{
+							++it;
+						}
+						count++;
+					}
+					// pop up the latest annotation
+					if (!deleted)
+					{
+						annotations[currentFrameN].pop_back();
+						if (tracking && !trackers.empty())
+							trackers.pop_back();
+					}
+					
                 }
             }
             if (mode == AXIS_RECT && drawing.size() == 4)
@@ -666,6 +653,9 @@ public:
 				// add the action type for this box
 				allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
 				
+				// add the mode for this box
+				allocateAttrToNodeXML(doc, sub_node, "mode", std::to_string(annotations[i][j].mode));
+
 				for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
 				{					
 					std::string pointNum = "pointNumber";
@@ -773,9 +763,28 @@ public:
 
 			annotations.push_back(instance);
 		}
-
 		return currentFrameN;
 	}
+
+	//virtual void readTrackerFromAnnotation(Mat &Frame)
+	//{
+	//	// read the tracker
+	//	if (tracking)
+	//	{
+	//		// clear the tracker first
+	//		trackers.clear();
+	//		for (int i = 0; i < annotations[currentFrameN].size(); i++)
+	//		{
+	//			Ptr<SKCFDCF> tmp = new SKCFDCF();
+	//			Rect area = boundingRect(annotations[currentFrameN].at(i).annotateFrame);
+	//			area.width -= 1;
+	//			area.height -= 1;
+	//			tmp->initialize(Frame, area);
+	//			trackers.push_back(tmp);
+	//		}
+
+	//	}
+	//}
 
 	virtual bool readActionTypeFile(const string &filename)
 	{
