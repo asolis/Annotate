@@ -124,7 +124,7 @@ int main(int argc, const char * argv[])
 
     if (parser.has("o"))
     {
-        for (size_t i = 1; i <= parser.n_positional_args(); i++)
+        for (size_t i = 0; i < parser.n_positional_args(); i++)
         {
             Ptr<Input> input = _inputs[i];
             Size org = input->getOrgSize();

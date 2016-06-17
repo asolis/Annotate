@@ -254,11 +254,10 @@ public:
 		}
 		else 
 		{
-			currentFrameN = frameN;
-
 			// predict the new position base on the previous tracker information
-			if (tracking && !annotations.empty())
+			if (tracking && frameN > currentFrameN)
 			{
+				currentFrameN = frameN;
 				vector<Annotation> tmp;
 				for (size_t i = 0; i < annotations[currentFrameN-1].size(); i++)
 				{
@@ -290,6 +289,10 @@ public:
 				}
 				// add the new tracker to the current annotation
 				annotations[currentFrameN].insert(annotations[currentFrameN].end(), tmp.begin(), tmp.end());
+			}
+			else
+			{
+				currentFrameN = frameN;
 			}
 		}
 
