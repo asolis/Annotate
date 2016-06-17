@@ -638,21 +638,18 @@ bool AnnotateProcess::readActionTypeFile(const string &filename)
     }
 }
 
-
-int CSVAnnotateProcess::read(const string &filename)
+int CSVAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
 {
     ifstream file;
     file.open(filename);
     string line;
 
-    vector<vector<vector<Point2f>>> _data;
+    //    vector<vector<vector<Point2f>>> _data;
+    //
+    //    _data.clear();
+    ann.clear();
 
-    _data.clear();
-
-    annotations.clear();
-    drawing.clear();
-    
-    currentFrameN = 0;
+    int currentFrameN = 0;
 
     while (file)
     {
@@ -663,8 +660,8 @@ int CSVAnnotateProcess::read(const string &filename)
         istringstream streamline(line);
         string annotation;
 
-        vector<vector<Point2f>> _line;
-        _data.push_back(_line);
+        //        vector<vector<Point2f>> _line;
+        //        _data.push_back(_line);
 
         vector<Annotation> list;
         while (getline(streamline, annotation, '|'))
@@ -682,12 +679,19 @@ int CSVAnnotateProcess::read(const string &filename)
             list.push_back(tmp);
             streamannot.clear();
         }
-        annotations.push_back(list);
+        ann.push_back(list);
         streamline.clear();
 
     }
     file.close();
     return (currentFrameN)?currentFrameN - 1 : currentFrameN;
+}
+
+int CSVAnnotateProcess::read(const string &filename)
+{
+
+    drawing.clear();
+    return parse(filename, annotations);
 }
 
 void CSVAnnotateProcess::write(const string &filename, const float scaleX, const float scaleY)
@@ -786,7 +790,7 @@ void XMLAnnotateProcess::allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *
     node->append_attribute(attr);
 }
 
-int XMLAnnotateProcess::read(const string &filename)
+int XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
 {
     string input_xml;
     std::string line;
@@ -804,12 +808,13 @@ int XMLAnnotateProcess::read(const string &filename)
     xml_document<> doc;
     doc.parse<parse_no_data_nodes>(&xml_copy[0]);
 
-    annotations.clear();
-    drawing.clear();
-   
+    ann.clear();
+
+    int currentFrameN = 0;
+
     // parse the root node
     xml_node<>* cur_node = doc.first_node("video");
-    peopleAmount = atoi(cur_node->first_attribute()->value());
+    int peopleAmount = atoi(cur_node->first_attribute()->value());
 
     // frame loop
     for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
@@ -860,9 +865,15 @@ int XMLAnnotateProcess::read(const string &filename)
             tmp.annotateFrame = pts;
             instance.push_back(tmp);
         }
-
-        annotations.push_back(instance);
+        
+        ann.push_back(instance);
     }
-
+    
     return currentFrameN;
+}
+
+int XMLAnnotateProcess::read(const string &filename)
+{
+    drawing.clear();
+    return parse(filename, annotations);
 }
