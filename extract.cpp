@@ -55,7 +55,7 @@ int main(int argc, const char * argv[])
     if (parser.has("h"))
         parser.printMessage();
 
-    vector<vector<vector<Point2f>>> _gtruth;
+    vector<vector<Annotation>> _gtruth;
     string sequence = parser.get<string>(0);
 
     Ptr<Input> input = InputFactory::create(sequence, Size(-1,-1));
@@ -67,15 +67,15 @@ int main(int argc, const char * argv[])
 
     if (viva::Files::isFile(fullname) && !parser.has("g") && !parser.has("x"))
     {
-        AnnotateProcess::parseAnnotations(fullname, _gtruth);
+        CSVAnnotateProcess::parse(fullname, _gtruth);
     }
     else if (parser.has("g") && viva::Files::isFile(gfile))
     {
-        AnnotateProcess::parseAnnotations(gfile, _gtruth);
+        CSVAnnotateProcess::parse(gfile, _gtruth);
     }	
 	else if (parser.has("x") && viva::Files::isFile(xmlgfile))
 	{
-		AnnotateProcess::parseXMLAnnotations(xmlgfile, _gtruth);
+		XMLAnnotateProcess::parse(xmlgfile, _gtruth);
 	}
 
     string outputFolder = parser.get<string>("o");
@@ -99,7 +99,8 @@ int main(int argc, const char * argv[])
 
             for (size_t i = 0; i < _gtruth[frameN].size(); i++)
             {
-                vector<Point2f> &pts =  _gtruth[frameN][i];
+                Annotation &annotation = _gtruth[frameN][i];
+                vector<Point2f> &pts =  annotation.annotateFrame;
                 Draw::displayPolygon(output, pts, Color::yellow, 2, true);
                 Draw::displayPolygonNumber(output, pts, i+1);
 

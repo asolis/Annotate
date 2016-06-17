@@ -33,6 +33,8 @@
  **************************************************************************************************/
 
 #include "aprocess.h"
+#include "clp.hpp"
+#include "mprocessor.hpp"
 
 using namespace viva;
 
@@ -41,7 +43,7 @@ int main(int argc, const char * argv[])
 
     const String keys =
         "{help h            |           | print this message}"
-        "{@sequence         |           | url, file, folder, sequence}"
+        "{@sequence         |           | list of url, file, folder, sequence}"
         "{m method          |p          | choices =  p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
         "{W width           |-1         | scale input using this width, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
@@ -54,72 +56,86 @@ int main(int argc, const char * argv[])
 
     ;
 
-    CommandLineParser parser(argc, argv, keys);
+    CommandLineParserExt parser(argc, argv, keys);
 
+    /** Print Help **/
     if (parser.has("h"))
         parser.printMessage();
 
-    string sequence = parser.get<string>(0);
+    /** specify the polygonal annotation to start with **/
     string mname    = parser.get<string>("m");
-
-    Ptr<Input> input = InputFactory::create(sequence,
-                                    Size(parser.get<int>("W"),
-                                         parser.get<int>("H")));
-
     int method = AnnotateProcess::POLY;
     if (mname == "a")
         method = AnnotateProcess::AXIS_RECT;
     else if (mname == "r")
         method = AnnotateProcess::ROTA_RECT;
 
+    /** enable continuity or tracking **/
     string track = parser.get<string>("t");
     bool continuity = (track == "d" || track == "e");
     bool tracking   = (track == "e");
 
-    Ptr<AnnotateProcess> process;
-    if (parser.get<string>("f") == "xml")
+    vector<Ptr<Input>> _inputs;
+    vector<Ptr<AnnotateProcess>> _process;
+    vector<Ptr<ProcessFrame>> proc;
+
+    /** create the list of inputs and annotation process **/
+    for (size_t i = 1; i <= parser.n_positional_args(); i++)
     {
-        process = new XMLAnnotateProcess(parser.get<float>("r"),
-                                          method, continuity,
-                                          tracking, parser.has("a"),
-                                          input->totalFrames());
+        Ptr<Input> input = InputFactory::create(parser.get<string>(i),
+                                Size(parser.get<int>("W"), parser.get<int>("H")));
+
+        _inputs.push_back(input);
+
+        Ptr<AnnotateProcess> process;
+        if (parser.get<string>("f") == "xml")
+        {
+            process = new XMLAnnotateProcess(parser.get<float>("r"),
+                                             method, continuity,
+                                             tracking, parser.has("a"),
+                                             input->totalFrames());
+        }
+        else
+        {
+            process = new CSVAnnotateProcess(parser.get<float>("r"),
+                                             method, continuity,
+                                             tracking, parser.has("a"),
+                                             input->totalFrames());
+        }
+
+//        int latestFrame = 0;
+//        if (parser.has("i"))
+//            latestFrame = process->read(parser.get<string>("i"));
+
+        if (parser.has("a"))
+            process->readActionTypeFile(parser.get<string>("a"));
+
+        _process.push_back(process);
+        proc.push_back(process);
     }
-    else
-    {
-        process = new CSVAnnotateProcess(parser.get<float>("r"),
-                                      method, continuity,
-                                      tracking, parser.has("a"),
-                                      input->totalFrames());
-    }
-
-	int latestFrame = 0;
-	if (parser.has("i"))
-		latestFrame = process->read(parser.get<string>("i"));
-
-	if (parser.has("a"))
-		process->readActionTypeFile(parser.get<string>("a"));
 
 
-
-	SeekProcessor processor;
-    processor.setInput(input);
-    Ptr<ProcessFrame> proc = process;
+	MultipleProcess processor;
+    processor.setInput(_inputs);
 	processor.setProcess(proc);
     processor.listenToMouseEvents();
     processor.listenToKeyboardEvents();
-    processor.run(latestFrame);
-
-
-	Size org = input->getOrgSize();
-	Size cur = Size(input->getWidth(), input->getHeight());
-
+    processor.run(0);
 
     if (parser.has("o"))
-    {        
-        string annotations = parser.get<string>("o");
-        process->write(annotations,
+    {
+        for (size_t i = 1; i <= parser.n_positional_args(); i++)
+        {
+            Ptr<Input> input = _inputs[i];
+            Size org = input->getOrgSize();
+            Size cur = Size(input->getWidth(), input->getHeight());
+
+            Ptr<AnnotateProcess> process = _process[i];
+            string annotations = parser.get<string>("o");
+            process->write(annotations,
                                   (float)org.width/(float)cur.width,
                                   (float)org.height/(float)cur.height);
+        }
     }
 
 

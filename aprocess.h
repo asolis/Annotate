@@ -32,7 +32,6 @@
 
  **************************************************************************************************
  **************************************************************************************************/
-
 #ifndef __annotate__process__
 #define __annotate__process__
 
@@ -43,10 +42,10 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
 
 using namespace viva;
 using namespace rapidxml;
-
 /**
  *  Color struct.
  *  Custom color codes used by the Draw class
@@ -63,6 +62,7 @@ struct Color
     const static Scalar teal;
     const static Scalar orange;
 };
+
 
 
 class InputFactory
@@ -400,9 +400,7 @@ public:
     virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f) = 0;
 
     virtual int read(const string &filename) = 0;
-
 };
-
 
 class CSVAnnotateProcess : public AnnotateProcess
 {
@@ -422,15 +420,14 @@ public:
                     bool  cont    =  true,
                     bool  track   =  true,
                     bool  action  =  false,
-                       int totalFrameN = 0):AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+                    int totalFrameN = 0):AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
     {}
 
-
+    static int parse(const string &filename, vector<vector<Annotation>> &annotation);
     virtual int read(const string &filename);
     virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
 
 };
-
 
 class XMLAnnotateProcess: public AnnotateProcess
 {
@@ -453,7 +450,7 @@ public:
 
     virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
     virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value);
+    static int parse(const string &filename, vector<vector<Annotation>> &annotation);
     virtual int read(const string &filename);
 };
-
 #endif
