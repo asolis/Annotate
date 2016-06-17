@@ -264,6 +264,7 @@ public:
 					if (annotations[currentFrameN-1].at(i).tracker)
 					{
 						tmp.push_back(annotations[currentFrameN-1].at(i));
+						annotations[currentFrameN - 1].at(i).tracker.release();
 					}
 				}
 				
