@@ -233,7 +233,7 @@ void MultipleProcess::run(int startFrame)
     int key = Keys::NONE;
 
     // initialize the freezeFrame
-    bool initState = true;
+    bool allSequencesReady = true;
     vector<Mat>  freezedFrames;
     vector<bool> hasFrame;
 
@@ -241,7 +241,7 @@ void MultipleProcess::run(int startFrame)
     {
         Mat tmp;
         bool _retrieved = _input[i]->getFrame(tmp, startFrame);
-        initState = initState && _retrieved;
+        allSequencesReady = allSequencesReady && _retrieved;
         freezedFrames.push_back(tmp);
         hasFrame.push_back(_retrieved);
 
@@ -249,7 +249,7 @@ void MultipleProcess::run(int startFrame)
 
     frameN += startFrame;
 
-    while (running && initState)
+    while (running && allSequencesReady)
     {
 
         vector<Mat> frame(_input.size()), frameOut(_input.size());
@@ -277,6 +277,12 @@ void MultipleProcess::run(int startFrame)
             {
                 frame[i] = freezedFrames[i];
             }
+        }
+
+        bool allSequencesFinished = false;
+        for (size_t i = 0; i < _input.size(); i++)
+        {
+            allSequencesFinished = allSequencesFinished || hasFrame[i];
         }
 
         if (true)
@@ -322,7 +328,8 @@ void MultipleProcess::run(int startFrame)
             {
                 for (size_t i = 0; i < _input.size(); i++)
                 {
-                    _process[i]->keyboardInput(key);
+                    if (_activeWindow == i)
+                        _process[i]->keyboardInput(key);
                 }
             }
             

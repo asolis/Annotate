@@ -111,7 +111,7 @@ public:
         return t;
     }
 
-    std::string printMessage() const
+    void printMessage() const
     {
         _clp.printMessage();
     }
