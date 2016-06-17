@@ -23,6 +23,8 @@ FILE(GLOB proj_files
 	"*.hpp"
 	"main.cpp"
 	"aprocess.*"
+	"mprocessor.*"
+	"clp.*"
 )
 FILE(GLOB tool_files
 	"*.hpp"
