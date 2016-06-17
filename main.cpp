@@ -76,6 +76,7 @@ int main(int argc, const char * argv[])
     bool tracking   = (track == "e");
 
     vector<Ptr<Input>> _inputs;
+	vector<int> _startFrame;
     vector<Ptr<AnnotateProcess>> _process;
     vector<Ptr<ProcessFrame>> proc;
 
@@ -103,9 +104,10 @@ int main(int argc, const char * argv[])
                                              input->totalFrames());
         }
 
-//        int latestFrame = 0;
-//        if (parser.has("i"))
-//            latestFrame = process->read(parser.get<string>("i"));
+        int latestFrame = 0;
+        if (parser.has("i"))
+            latestFrame = process->read(parser.get<string>("i"));
+		_startFrame.push_back(latestFrame);
 
         if (parser.has("a"))
             process->readActionTypeFile(parser.get<string>("a"));
@@ -117,10 +119,11 @@ int main(int argc, const char * argv[])
 
 	MultipleProcess processor;
     processor.setInput(_inputs);
+	processor.setStartFrame(_startFrame);
 	processor.setProcess(proc);
     processor.listenToMouseEvents();
     processor.listenToKeyboardEvents();
-    processor.run(0);
+    processor.run();
 
     if (parser.has("o"))
     {
