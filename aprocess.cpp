@@ -475,6 +475,7 @@ void AnnotateProcess::keyboardInput(int key)
     {
         if (drawing.empty())
         {
+			selection = -1;
 			if (!annotations[currentFrameN].empty())
 			{
 				bool deleted = false;
