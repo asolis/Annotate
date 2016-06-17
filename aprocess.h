@@ -100,6 +100,7 @@ struct Annotation
 	int mode;
 	string actionType;
 	int ID;
+	Ptr<SKCFDCF> tracker;
 };
 
 class AnnotateProcess : public ProcessFrame
@@ -110,6 +111,7 @@ protected:
     void  swapPolygon(int i);
     bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
     int   findIndexOfPolygonContainingPt(const Point2f &pt);
+	Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
     Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
 
     void getRRect(const Point2f &mPos, float ratio,
@@ -143,6 +145,7 @@ protected:
     bool continuity;
     bool tracking;
 	bool actionAnnotating;
+	bool initialized;
 
 
 public:
@@ -159,7 +162,6 @@ public:
 
     vector<Point2f> drawing;
 
-    vector<Ptr<SKCFDCF>> trackers;
     Mat currentFrame;
 
     /*
@@ -190,11 +192,11 @@ public:
                       tracking(track),
                       annotations(),
                       drawing(),
-                      trackers(),
-					  currentActionType(""),
+                      currentActionType(""),
                       currentFrame(),
 		              peopleAmount(0),
-		              actionAnnotating(action)
+		              actionAnnotating(action), 
+                      initialized(false)
     {}
 
 
@@ -214,37 +216,105 @@ public:
 			else
 			{
 				vector<Annotation> tmp;
-				annotations.push_back(tmp);
-
-				trackers.clear();
+				annotations.push_back(tmp);				
 			}
 
 			currentFrameN = frameN;
-			frame.copyTo(currentFrame);
-
+			
 			/** if tracking is selected, propose a new position for the previous
 			frame annotations **/
 
 			if (tracking)
 			{
-				for (size_t i = 0; i < trackers.size(); i++)
+				for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
 				{
-					trackers[i]->processFrame(frame);
-					Point2f deltha;
-					float scale;
-					trackers[i]->getTransformation(deltha, scale);
-
-					for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
+					if (annotations[currentFrameN].at(i).tracker)
 					{
-						annotations[currentFrameN][i].annotateFrame[p] += deltha;
-					}
+						annotations[currentFrameN].at(i).tracker->processFrame(frame);
+						Point2f deltha;
+						float scale;
+						annotations[currentFrameN].at(i).tracker->getTransformation(deltha, scale);
+
+						for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
+						{
+							annotations[currentFrameN].at(i).annotateFrame[p] += deltha;
+						}
+
+						// remove the previous tracker
+						annotations[currentFrameN].at(i).tracker.release();
+						annotations[currentFrameN - 1].at(i).tracker.release();
+
+						// allocate a new tracker 
+						Rect area = boundingRect(annotations[currentFrameN].at(i).annotateFrame);
+						annotations[currentFrameN].at(i).tracker = initTracker(frame, area);						
+					}			
 				}
 			}
 
 		}
+		else 
+		{
+			currentFrameN = frameN;
 
-		currentFrameN = frameN;
+			// predict the new position base on the previous tracker information
+			if (tracking && !annotations.empty())
+			{
+				vector<Annotation> tmp;
+				for (size_t i = 0; i < annotations[currentFrameN-1].size(); i++)
+				{
+					if (annotations[currentFrameN-1].at(i).tracker)
+					{
+						tmp.push_back(annotations[currentFrameN-1].at(i));
+					}
+				}
+				
+				// predict the new position base on the tracker
+				for (size_t i = 0; i < tmp.size(); i++)
+				{
+					tmp.at(i).tracker->processFrame(frame);
+					Point2f deltha;
+					float scale;
+					tmp.at(i).tracker->getTransformation(deltha, scale);
+
+					for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
+					{
+						tmp.at(i).annotateFrame[p] += deltha;
+					}
+
+					// remove the previous tracker
+					tmp.at(i).tracker.release();
+					
+					// allocate a new tracker 
+					Rect area = boundingRect(tmp.at(i).annotateFrame);
+					tmp.at(i).tracker = initTracker(frame, area);
+				}
+				// add the new tracker to the current annotation
+				annotations[currentFrameN].insert(annotations[currentFrameN].end(), tmp.begin(), tmp.end());
+			}
+		}
+
 		frame.copyTo(output);
+		frame.copyTo(currentFrame);
+
+		if (!initialized)
+		{
+			// initialized the tracker
+			if (tracking)
+			{
+				// create the tracker based on the latest frame's annotations
+				for (int i = 0; i < annotations[currentFrameN].size(); i++)
+				{
+					Ptr<SKCFDCF> tmp = new SKCFDCF();
+					Rect area = boundingRect(annotations[currentFrameN].at(i).annotateFrame);
+					area.width -= 1;
+					area.height -= 1;
+					tmp->initialize(currentFrame, area);
+					annotations[currentFrameN].at(i).tracker = tmp;
+				}
+			}
+
+			initialized = true;
+		}
 
 		if (showHelp)
 			helpHUD(output);
@@ -261,7 +331,7 @@ public:
 				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType);
 		}
 
-		// display the currennt drawing
+		// display the current drawing
 		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
 
 
@@ -352,10 +422,6 @@ public:
      */
     virtual void keyboardInput(int key);
 
-    virtual void newTracker();
-
-    virtual void remTracker(int i);
-
     virtual void remAnnotation();
 
     virtual void newAnnotation();
@@ -366,25 +432,6 @@ public:
 
     virtual int read(const string &filename) = 0;
 
-	//virtual void readTrackerFromAnnotation(Mat &Frame)
-	//{
-	//	// read the tracker
-	//	if (tracking)
-	//	{
-	//		// clear the tracker first
-	//		trackers.clear();
-	//		for (int i = 0; i < annotations[currentFrameN].size(); i++)
-	//		{
-	//			Ptr<SKCFDCF> tmp = new SKCFDCF();
-	//			Rect area = boundingRect(annotations[currentFrameN].at(i).annotateFrame);
-	//			area.width -= 1;
-	//			area.height -= 1;
-	//			tmp->initialize(Frame, area);
-	//			trackers.push_back(tmp);
-	//		}
-
-	//	}
-	//}
 };
 
 

@@ -172,6 +172,14 @@ int AnnotateProcess::findIndexOfPolygonContainingPt(const Point2f &pt)
     }
     return found;
 }
+Ptr<SKCFDCF> AnnotateProcess::initTracker(Mat frame, Rect area) 
+{
+	Ptr<SKCFDCF> tmp = new SKCFDCF();
+	area.width -= 1;
+	area.height -= 1;
+	tmp->initialize(frame, area);
+	return tmp;
+}
 Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
 {
     Point2f tmp = e - s;
@@ -470,8 +478,7 @@ void AnnotateProcess::keyboardInput(int key)
 			if (!annotations[currentFrameN].empty())
 			{
 				bool deleted = false;
-				int count = 0;
-				// revmove the empty annotation first 
+				// remove the empty annotation first 
 				for (std::vector<Annotation>::iterator it = annotations[currentFrameN].begin();
 					it != annotations[currentFrameN].end();)
 				{
@@ -484,14 +491,11 @@ void AnnotateProcess::keyboardInput(int key)
 					{
 						++it;
 					}
-					count++;
 				}
 				// pop up the latest annotation
 				if (!deleted)
 				{
 					annotations[currentFrameN].pop_back();
-					if (tracking && !trackers.empty())
-						trackers.pop_back();
 				}
 
 			}
@@ -518,8 +522,13 @@ void AnnotateProcess::keyboardInput(int key)
         while (!annotations[currentFrameN].empty())
             annotations[currentFrameN].pop_back();
 
-        if (tracking)
-            trackers.clear();
+		if (tracking)
+		{
+			for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
+			{
+				delete annotations[currentFrameN].at(i).tracker;
+			}
+		}
     }
     if (key == 'h' || key == 'H')
     {
@@ -566,41 +575,11 @@ void AnnotateProcess::keyboardInput(int key)
     }
 };
 
-void AnnotateProcess::newTracker()
-{
-    if (tracking)
-    {
-        Ptr<SKCFDCF> tmp = new SKCFDCF();
-        Rect area = boundingRect(drawing);
-        area.width -= 1;
-        area.height -= 1;
-        tmp->initialize(currentFrame,area);
-
-        if (selection < 0)
-        {
-            trackers.push_back(tmp);
-        }
-        else if (selection >= 0 && selection < trackers.size())
-        {
-            trackers[selection] = tmp;
-        }
-    }
-}
-
-void AnnotateProcess::remTracker(int i)
-{
-    if (tracking && i >= 0 && i < trackers.size())
-    {
-        trackers.erase(trackers.begin() + i);
-    }
-}
-
 void AnnotateProcess::remAnnotation()
 {
     if (selection >= 0 && selection < annotations[currentFrameN].size())
     {
         annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
-        trackers.erase(trackers.begin() + selection);
     }
     drawing.clear();
     selection = -1;
@@ -611,12 +590,14 @@ void AnnotateProcess::newAnnotation()
     if (acceptPolygon(drawing, mode))
     {
         Annotation tmp;
+		Rect area = boundingRect(drawing);
         if (selection < 0)
         {
             tmp.annotateFrame = drawing;
             tmp.mode = mode;
             tmp.actionType = currentActionType;
             tmp.ID = peopleAmount++;
+			tmp.tracker = initTracker(currentFrame, area);
 
             annotations[currentFrameN].push_back(tmp);
         }
@@ -625,8 +606,8 @@ void AnnotateProcess::newAnnotation()
             annotations[currentFrameN][selection].annotateFrame = drawing;
             annotations[currentFrameN][selection].mode = mode;
             annotations[currentFrameN][selection].actionType = currentActionType;
+			annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
         }
-        newTracker();
         drawing.clear();
         selection = -1;
 
@@ -670,8 +651,7 @@ int CSVAnnotateProcess::read(const string &filename)
 
     annotations.clear();
     drawing.clear();
-    trackers.clear();
-
+    
     currentFrameN = 0;
 
     while (file)
@@ -826,8 +806,7 @@ int XMLAnnotateProcess::read(const string &filename)
 
     annotations.clear();
     drawing.clear();
-    trackers.clear();
-
+   
     // parse the root node
     xml_node<>* cur_node = doc.first_node("video");
     peopleAmount = atoi(cur_node->first_attribute()->value());
