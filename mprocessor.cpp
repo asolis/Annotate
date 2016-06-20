@@ -195,7 +195,7 @@ void MultipleProcess::mouseCallback(int event, int x, int y, int flags, void *pt
     }
 }
 
-void MultipleProcess::run(int startFrame)
+void MultipleProcess::run()
 {
 
     int FLAGS = CV_GUI_NORMAL | CV_WINDOW_AUTOSIZE;
@@ -226,7 +226,7 @@ void MultipleProcess::run(int startFrame)
         return;
 
 
-    long frameN = 0;
+    vector<long> frameN;
     Mat freezeFrame;
     bool freezed = true;
     bool running = true;
@@ -240,14 +240,14 @@ void MultipleProcess::run(int startFrame)
     for (size_t i = 0; i < _input.size(); i++)
     {
         Mat tmp;
-        bool _retrieved = _input[i]->getFrame(tmp, startFrame);
+        bool _retrieved = _input[i]->getFrame(tmp, _startFrame[i]);
         allSequencesReady = allSequencesReady && _retrieved;
         freezedFrames.push_back(tmp);
         hasFrame.push_back(_retrieved);
-
+		long frame = 0;
+		frame += _startFrame[i];
+		frameN.push_back(frame);
     }
-
-    frameN += startFrame;
 
     while (running && allSequencesReady)
     {
@@ -259,8 +259,8 @@ void MultipleProcess::run(int startFrame)
             {
                 hasFrame[i] = _input[i]->getFrame(frame[i], 1);
                 freezedFrames[i] = frame[i];
+				frameN[i]++;
             }
-            frameN++;
         }
         else if (!freezed || key == Keys::p)
         {
@@ -268,8 +268,8 @@ void MultipleProcess::run(int startFrame)
             {
                 hasFrame[i] = _input[i]->getFrame(frame[i], -1);
                 freezedFrames[i] = frame[i];
+				frameN[i]--;
             }
-            frameN--;
         }
         else
         {
@@ -292,7 +292,7 @@ void MultipleProcess::run(int startFrame)
             {
 
                 if (_process.size())
-                    _process[i]->operator()(frameN, frame[i], frameOut[i]);
+                    _process[i]->operator()(frameN[i], frame[i], frameOut[i]);
 
                 if (_showOutput && !frameOut[i].empty())
                     cv::imshow(_windowName + to_string(i), frameOut[i]);
