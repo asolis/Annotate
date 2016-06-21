@@ -122,7 +122,7 @@ void SeekProcessor::run(int startFrame)
                 _process->operator()(frameN, frame, frameOut);
 
             auto end_time = chrono::high_resolution_clock::now();
-            auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count();
+            //auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count();
 
             if (_showOutput && !frameOut.empty())
                 cv::imshow(_outputWindowName, frameOut);
@@ -285,7 +285,7 @@ void MultipleProcess::run()
             allSequencesFinished = allSequencesFinished || hasFrame[i];
         }
 
-        if (true)
+        if (allSequencesFinished)
         {
 
             for (size_t i = 0; i < _input.size(); i++)

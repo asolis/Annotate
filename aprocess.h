@@ -185,18 +185,18 @@ public:
                       thickness(2),
                       mode(method),
                       selection(-1),
+                      peopleAmount(0),
+                      currentActionType(""),
                       ratio(ratioYX),
                       showHelp(true),
 					  showActionHelp(false),
                       continuity(cont),
                       tracking(track),
+		              actionAnnotating(action),
+                      initialized(false),
                       annotations(),
                       drawing(),
-                      currentActionType(""),
-                      currentFrame(),
-		              peopleAmount(0),
-		              actionAnnotating(action), 
-                      initialized(false)
+                      currentFrame()
     {}
 
 
