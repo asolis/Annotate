@@ -7,7 +7,7 @@ PROJECT("${PROJECT_NAME}")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 # add opencv package to the project
-FIND_PACKAGE( OpenCV REQUIRED )
+FIND_PACKAGE( OpenCV 3 REQUIRED )
 INCLUDE_DIRECTORIES( ${OpenCV_INCLUDE_DIRS} ) 
 
 SUBDIRS(vivalib skcf)
