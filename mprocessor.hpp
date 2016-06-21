@@ -192,6 +192,7 @@ class MultipleProcess
 {
 private:
     vector<Ptr<Input>>  _input;
+	vector<int>			_startFrame;
     vector<Ptr<ProcessFrame>> _process;
     vector<Ptr<Output>>  _output;
     string _windowName;
@@ -262,6 +263,10 @@ public:
     {
         _input = input;
     }
+	void setStartFrame(vector<int> &startFrame)
+	{
+		_startFrame = startFrame;
+	}
     void setOutput(vector<Ptr<Output>> &output)
     {
         _output = output;
@@ -295,7 +300,7 @@ public:
      * To exit you should press the ESC key. The SPACE key will allow to pause and/or continue the video
      * sequence
      */
-    void run(int startFrame = 0);
+    void run();
 };
 
 
