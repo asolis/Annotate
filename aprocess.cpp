@@ -207,7 +207,7 @@ void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int numb
 	}
 }
 
-void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, int number, string actionType)
+void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, int number, string actionType, bool tracking)
 {
     if (pts.size() > 0)
     {
@@ -222,6 +222,8 @@ void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, i
                         Color::yellow, -1);
 
 		string display = "";
+		if (tracking)
+			display += "T ";
 		display += to_string(number);
 		display += " - ";
 		display += actionType;
@@ -607,7 +609,7 @@ void AnnotateProcess::newAnnotation()
             annotations[currentFrameN][selection].annotateFrame = drawing;
             annotations[currentFrameN][selection].mode = mode;
             annotations[currentFrameN][selection].actionType = currentActionType;
-			annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
+			//annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
         }
         drawing.clear();
         selection = -1;
