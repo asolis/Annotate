@@ -91,7 +91,8 @@ public:
     static void displayPolygonNumberNAction(Mat &image,
                               const vector<Point2f> &pts,
                               int number,
-							  string actionType);
+							  string actionType,
+		                      bool tracking);
 };
 
 struct Annotation
@@ -259,9 +260,10 @@ public:
 			{
 				currentFrameN = frameN;
 				vector<Annotation> tmp;
+				// push back the previous frame annotation if it has tracker
 				for (size_t i = 0; i < annotations[currentFrameN-1].size(); i++)
 				{
-					if (annotations[currentFrameN-1].at(i).tracker)
+					if (annotations[currentFrameN - 1].at(i).tracker)
 					{
 						tmp.push_back(annotations[currentFrameN-1].at(i));
 						annotations[currentFrameN - 1].at(i).tracker.release();
@@ -332,7 +334,7 @@ public:
 		{
 			Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow, thickness, true);
 			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame,
-				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType);
+				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType, annotations[currentFrameN][i].tracker);
 		}
 
 		// display the current drawing
