@@ -44,11 +44,11 @@ int main(int argc, const char * argv[])
     const String keys =
         "{help h            |           | print this message}"
         "{@sequence         |           | list of url, file, folder, sequence}"
-        "{m method          |p          | choices =  p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
+        "{m method          |a          | choices =  p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
         "{W width           |-1         | scale input using this width, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
-        "{t track           |e          | choices =  e | d | n  (i.e., enable, disable, and new). The 'e' enable option will generate a proposal position for next frame. Disable 'd' option will keep the same position from previous frame. New 'n' will clear the annotations from previous frame}"
+        "{t track           |on         | will generate a prediction position for the next frame}"
 		"{i import          |           | import xml file (only for image list input)}"
 		"{a actionType      |           | import actionType file}"
 		"{o output          |           | filename for annnotation results}"
@@ -64,16 +64,15 @@ int main(int argc, const char * argv[])
 
     /** specify the polygonal annotation to start with **/
     string mname    = parser.get<string>("m");
-    int method = AnnotateProcess::POLY;
-    if (mname == "a")
-        method = AnnotateProcess::AXIS_RECT;
-    else if (mname == "r")
+    int method = AnnotateProcess::AXIS_RECT;
+    if (mname == "r")
         method = AnnotateProcess::ROTA_RECT;
+    else if (mname == "p")
+        method = AnnotateProcess::POLY;
+    
 
-    /** enable continuity or tracking **/
-    string track = parser.get<string>("t");
-    bool continuity = (track == "d" || track == "e");
-    bool tracking   = (track == "e");
+    /** enable tracking **/
+    bool tracking= parser.has("t");
 
     vector<Ptr<Input>> _inputs;
 	vector<int> _startFrame;
@@ -92,21 +91,19 @@ int main(int argc, const char * argv[])
         if (parser.get<string>("f") == "xml")
         {
             process = new XMLAnnotateProcess(parser.get<float>("r"),
-                                             method, continuity,
-                                             tracking, parser.has("a"),
+                                             method, tracking, parser.has("a"),
                                              input->totalFrames());
         }
         else
         {
             process = new CSVAnnotateProcess(parser.get<float>("r"),
-                                             method, continuity,
-                                             tracking, parser.has("a"),
+                                             method, tracking, parser.has("a"),
                                              input->totalFrames());
         }
 
         int latestFrame = 0;
         if (parser.has("i"))
-            latestFrame = process->read(parser.get<string>("i"));
+            process->read(parser.get<string>("i"));
 		_startFrame.push_back(latestFrame);
 
         if (parser.has("a"))

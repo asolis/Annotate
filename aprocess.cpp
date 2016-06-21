@@ -154,7 +154,7 @@ bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 }
 void AnnotateProcess::swapPolygon(int i)
 {
-	swap(drawing, annotations[currentFrameN][i].annotateFrame);
+	swap(drawing, annotations[currentFrameN][i].area);
 	swap(mode, annotations[currentFrameN][i].mode);
 	swap(currentActionType, annotations[currentFrameN][i].actionType);
 }
@@ -167,7 +167,7 @@ int AnnotateProcess::findIndexOfPolygonContainingPt(const Point2f &pt)
     int found = -1;
     for ( size_t i = 0; i < annotations[currentFrameN].size(); i++)
     {
-        if (ptInsidePolygon(pt, annotations[currentFrameN][i].annotateFrame))
+        if (ptInsidePolygon(pt, annotations[currentFrameN][i].area))
             return i;
     }
     return found;
@@ -317,7 +317,6 @@ void AnnotateProcess::helpHUD(Mat &image)
 
     vector<string> help;
 	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
-	help.push_back(" Annotation Number : " + std::to_string(annotations.at(currentFrameN).size()));
 	help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (-) : Reduce ratio 0.1");
@@ -485,7 +484,7 @@ void AnnotateProcess::keyboardInput(int key)
 				for (std::vector<Annotation>::iterator it = annotations[currentFrameN].begin();
 					it != annotations[currentFrameN].end();)
 				{
-					if (it->annotateFrame.size() == 0)
+					if (it->area.size() == 0)
 					{
 						deleted = true;
 						it = annotations[currentFrameN].erase(it);
@@ -525,13 +524,13 @@ void AnnotateProcess::keyboardInput(int key)
         while (!annotations[currentFrameN].empty())
             annotations[currentFrameN].pop_back();
 
-		if (tracking)
-		{
-			for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
-			{
-				delete annotations[currentFrameN].at(i).tracker;
-			}
-		}
+//		if (tracking)
+//		{
+//			for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
+//			{
+//				delete annotations[currentFrameN].at(i).tracker;
+//			}
+//		}
     }
     if (key == 'h' || key == 'H')
     {
@@ -596,17 +595,16 @@ void AnnotateProcess::newAnnotation()
 		Rect area = boundingRect(drawing);
         if (selection < 0)
         {
-            tmp.annotateFrame = drawing;
+            tmp.area = drawing;
             tmp.mode = mode;
             tmp.actionType = currentActionType;
             tmp.ID = peopleAmount++;
-			tmp.tracker = initTracker(currentFrame, area);
-
+            tmp.tracking = true;
             annotations[currentFrameN].push_back(tmp);
         }
         else if (selection >= 0 && selection < annotations[currentFrameN].size() )
         {
-            annotations[currentFrameN][selection].annotateFrame = drawing;
+            annotations[currentFrameN][selection].area = drawing;
             annotations[currentFrameN][selection].mode = mode;
             annotations[currentFrameN][selection].actionType = currentActionType;
 			//annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
@@ -676,7 +674,7 @@ int CSVAnnotateProcess::parse(const string &filename, vector<vector<Annotation>>
             while (getline(streamannot, x, ',') &&
                    getline(streamannot, y, ',') )
             {
-                tmp.annotateFrame.push_back(Point2f(atof(x.c_str()),
+                tmp.area.push_back(Point2f(atof(x.c_str()),
                                                     atof(y.c_str())));
             }
             list.push_back(tmp);
@@ -706,13 +704,13 @@ void CSVAnnotateProcess::write(const string &filename, const float scaleX, const
 
         for (size_t j = 0; j < annotations[i].size(); j++)
         {
-            for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
+            for (size_t k = 0; k < annotations[i][j].area.size(); k++)
             {
 
-                file << annotations[i][j].annotateFrame[k].x * scaleX << ", "
-                << annotations[i][j].annotateFrame[k].y * scaleY;
+                file << annotations[i][j].area[k].x * scaleX << ", "
+                << annotations[i][j].area[k].y * scaleY;
 
-                if ( k != (annotations[i][j].annotateFrame.size() - 1))
+                if ( k != (annotations[i][j].area.size() - 1))
                     file << ", ";
             }
             if ( j != (annotations[i].size() - 1))
@@ -764,15 +762,15 @@ void XMLAnnotateProcess::write(const string &filename, const float scaleX, const
 			// add the mode for this box
 			allocateAttrToNodeXML(doc, sub_node, "mode", std::to_string(annotations[i][j].mode));
 
-            for (size_t k = 0; k < annotations[i][j].annotateFrame.size(); k++)
+            for (size_t k = 0; k < annotations[i][j].area.size(); k++)
             {
                 std::string pointNum = "pointNumber";
                 pointNum += std::to_string(k);
                 char *pointNumChar = doc.allocate_string(pointNum.c_str());
 
-                std::string pointValue = std::to_string(annotations[i][j].annotateFrame[k].x * scaleX);
+                std::string pointValue = std::to_string(annotations[i][j].area[k].x * scaleX);
                 pointValue += ",";
-                pointValue += std::to_string(annotations[i][j].annotateFrame[k].y * scaleY);
+                pointValue += std::to_string(annotations[i][j].area[k].y * scaleY);
 
                 // add the pointNumber information
                 allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
@@ -865,7 +863,7 @@ int XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>>
                 }
                 pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
             }
-            tmp.annotateFrame = pts;
+            tmp.area = pts;
             instance.push_back(tmp);
         }
         

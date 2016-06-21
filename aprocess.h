@@ -97,11 +97,12 @@ public:
 
 struct Annotation
 {
-	vector<Point2f> annotateFrame;
-	int mode;
-	string actionType;
-	int ID;
-	Ptr<SKCFDCF> tracker;
+    int ID;
+    bool tracking;
+    int mode;
+    string actionType;
+	vector<Point2f> area;
+	
 };
 
 class AnnotateProcess : public ProcessFrame
@@ -143,7 +144,6 @@ protected:
     float ratio;
     bool showHelp;
 	bool showActionHelp;
-    bool continuity;
     bool tracking;
 	bool actionAnnotating;
 	bool initialized;
@@ -174,8 +174,7 @@ public:
      */
 
     AnnotateProcess(float ratioYX = -1.f,
-                    int   method  = POLY,
-                    bool  cont    =  true,
+                    int   method  = AXIS_RECT,
                     bool  track   =  true,
 					bool  action  =  false,
 					int totalFrameN = 0):
@@ -191,7 +190,6 @@ public:
                       ratio(ratioYX),
                       showHelp(true),
 					  showActionHelp(false),
-                      continuity(cont),
                       tracking(track),
 		              actionAnnotating(action),
                       initialized(false),
@@ -203,124 +201,37 @@ public:
 
 	virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
 	{
-		if (frameN >= annotations.size())
-		{
-			// current frame doesn't have any annotation information
-			// create a new annotation base on the previous annotation information
-			
-			/** copy annotations from previous frame to current frame**/
-			if ((continuity || tracking) && frameN > 0)
-			{
-				annotations.push_back(annotations[annotations.size() - 1]);
-			}
-			/** create new set of empty annotations for the current frame**/
-			else
-			{
-				vector<Annotation> tmp;
-				annotations.push_back(tmp);				
-			}
-
-			currentFrameN = frameN;
-			
-			/** if tracking is selected, propose a new position for the previous
-			frame annotations **/
-
-			if (tracking)
-			{
-				for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
-				{
-					if (annotations[currentFrameN].at(i).tracker)
-					{
-						annotations[currentFrameN].at(i).tracker->processFrame(frame);
-						Point2f deltha;
-						float scale;
-						annotations[currentFrameN].at(i).tracker->getTransformation(deltha, scale);
-
-						for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
-						{
-							annotations[currentFrameN].at(i).annotateFrame[p] += deltha;
-						}
-
-						// remove the previous tracker
-						annotations[currentFrameN].at(i).tracker.release();
-						annotations[currentFrameN - 1].at(i).tracker.release();
-
-						// allocate a new tracker 
-						Rect area = boundingRect(annotations[currentFrameN].at(i).annotateFrame);
-						annotations[currentFrameN].at(i).tracker = initTracker(frame, area);						
-					}			
-				}
-			}
-
-		}
-		else 
-		{
-			// predict the new position base on the previous tracker information
-			if (tracking && frameN > currentFrameN)
-			{
-				currentFrameN = frameN;
-				vector<Annotation> tmp;
-				// push back the previous frame annotation if it has tracker
-				for (size_t i = 0; i < annotations[currentFrameN-1].size(); i++)
-				{
-					if (annotations[currentFrameN - 1].at(i).tracker)
-					{
-						tmp.push_back(annotations[currentFrameN-1].at(i));
-						annotations[currentFrameN - 1].at(i).tracker.release();
-					}
-				}
-				
-				// predict the new position base on the tracker
-				for (size_t i = 0; i < tmp.size(); i++)
-				{
-					tmp.at(i).tracker->processFrame(frame);
-					Point2f deltha;
-					float scale;
-					tmp.at(i).tracker->getTransformation(deltha, scale);
-
-					for (size_t p = 0; p < annotations[currentFrameN][i].annotateFrame.size(); p++)
-					{
-						tmp.at(i).annotateFrame[p] += deltha;
-					}
-
-					// remove the previous tracker
-					tmp.at(i).tracker.release();
-					
-					// allocate a new tracker 
-					Rect area = boundingRect(tmp.at(i).annotateFrame);
-					tmp.at(i).tracker = initTracker(frame, area);
-				}
-				// add the new tracker to the current annotation
-				annotations[currentFrameN].insert(annotations[currentFrameN].end(), tmp.begin(), tmp.end());
-			}
-			else
-			{
-				currentFrameN = frameN;
-			}
-		}
-
+    
+        if (tracking && ( frameN == (currentFrameN + 1) ))
+        {
+            for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
+            {
+                Annotation &previous = annotations[currentFrameN][i];
+                if (previous.tracking)
+                {
+                    previous.tracking = false;
+                    
+                    Annotation newAnnotation;
+                    newAnnotation.ID = previous.ID;
+                    newAnnotation.tracking = true;
+                    newAnnotation.mode = mode;
+                    newAnnotation.actionType = currentActionType;
+                    
+                    Ptr<SKCFDCF> tmp = initTracker(currentFrame, boundingRect(previous.area));
+                    tmp->processFrame(frame);
+                    tmp->getTrackedArea(newAnnotation.area);
+                    
+                    if (frameN < annotations.size())
+                        annotations[frameN].push_back(newAnnotation);
+                }
+            }
+        }
+        
+        
+        currentFrameN = frameN;
 		frame.copyTo(output);
 		frame.copyTo(currentFrame);
 
-		if (!initialized)
-		{
-			// initialized the tracker
-			if (tracking)
-			{
-				// create the tracker based on the latest frame's annotations
-				for (int i = 0; i < annotations[currentFrameN].size(); i++)
-				{
-					Ptr<SKCFDCF> tmp = new SKCFDCF();
-					Rect area = boundingRect(annotations[currentFrameN].at(i).annotateFrame);
-					area.width -= 1;
-					area.height -= 1;
-					tmp->initialize(currentFrame, area);
-					annotations[currentFrameN].at(i).tracker = tmp;
-				}
-			}
-
-			initialized = true;
-		}
 
 		if (showHelp)
 			helpHUD(output);
@@ -332,9 +243,9 @@ public:
 		// display the existed annotation
 		for (int i = 0; i < annotations[currentFrameN].size(); i++)
 		{
-			Draw::displayPolygon(output, annotations[currentFrameN][i].annotateFrame, Color::yellow, thickness, true);
-			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].annotateFrame,
-				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType, annotations[currentFrameN][i].tracker);
+			Draw::displayPolygon(output, annotations[currentFrameN][i].area, Color::yellow, thickness, true);
+			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].area,
+				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType, true);
 		}
 
 		// display the current drawing
@@ -454,10 +365,9 @@ public:
 
     CSVAnnotateProcess(float ratioYX = -1.f,
                     int   method  = POLY,
-                    bool  cont    =  true,
                     bool  track   =  true,
                     bool  action  =  false,
-                    int totalFrameN = 0):AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+                    int totalFrameN = 0):AnnotateProcess(ratioYX, method, track, action, totalFrameN)
     {}
 
     static int parse(const string &filename, vector<vector<Annotation>> &annotation);
@@ -479,10 +389,9 @@ public:
 
     XMLAnnotateProcess(float ratioYX = -1.f,
                     int   method  = POLY,
-                    bool  cont    =  true,
                     bool  track   =  true,
                     bool  action  =  false,
-                       int totalFrameN = 0): AnnotateProcess(ratioYX, method, cont, track, action, totalFrameN)
+                       int totalFrameN = 0): AnnotateProcess(ratioYX, method, track, action, totalFrameN)
     {}
 
     virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
