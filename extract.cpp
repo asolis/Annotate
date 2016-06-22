@@ -100,9 +100,9 @@ int main(int argc, const char * argv[])
             for (size_t i = 0; i < _gtruth[frameN].size(); i++)
             {
                 Annotation &annotation = _gtruth[frameN][i];
-                vector<Point2f> &pts =  annotation.annotateFrame;
+                vector<Point2f> &pts =  annotation.area;
                 Draw::displayPolygon(output, pts, Color::yellow, 2, true);
-                Draw::displayPolygonNumber(output, pts, i+1);
+                Draw::displayPolygonInfo(output, to_string(i+1), pts);
 
                 Rect tmp  = boundingRect(pts);
                 tmp.width -= 1;

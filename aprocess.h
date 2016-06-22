@@ -63,6 +63,15 @@ struct Color
     const static Scalar orange;
 };
 
+struct Annotation
+{
+    int ID;
+    bool tracking;
+    int mode;
+    string actionType;
+    vector<Point2f> area;
+    
+};
 
 
 class InputFactory
@@ -85,32 +94,34 @@ public:
                                const Scalar &color = Color::red,
                                int thickness = 2,
                                bool close = true);
-	static void displayPolygonNumber(Mat &image,
-							  const vector<Point2f> &pts,
-							  int number);
-    static void displayPolygonNumberNAction(Mat &image,
-                              const vector<Point2f> &pts,
-                              int number,
-							  string actionType,
-		                      bool tracking);
+    
+    static void displayAnnotation(Mat &image,
+                                  Annotation &ann,
+                                  const Scalar &background = Color::yellow,
+                                  const Scalar &foreground = Color::red,
+                                  int thickness = 2,
+                                  bool close = true);
+    
+    static void displayPolygonInfo(cv::Mat &image,
+                                   const string &info,
+                                   const vector<Point2f> &pts,
+                                   const Scalar &background = Color::yellow,
+                                   const Scalar &foreground = Color::red);
 };
 
-struct Annotation
-{
-    int ID;
-    bool tracking;
-    int mode;
-    string actionType;
-	vector<Point2f> area;
-	
-};
+
 
 class AnnotateProcess : public ProcessFrame
 {
 protected:
+    
+    static int peopleAmount;
+    
+    
     float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
     bool  acceptPolygon(const vector<Point2f> &polyg, int m);
     void  swapPolygon(int i);
+    bool  annotationIsSelected();
     bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
     int   findIndexOfPolygonContainingPt(const Point2f &pt);
 	Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
@@ -127,7 +138,7 @@ protected:
                           Point2f &p3,
                   Point2f &p4);
     void helpHUD(Mat &image);
-	void helpActionHUB(Mat &image);
+	
 
     Point2f centroid(const vector<Point2f> &corners);
 
@@ -139,11 +150,9 @@ protected:
     int thickness;
     int mode;
     int selection;
-	int peopleAmount;
 	string currentActionType;
     float ratio;
     bool showHelp;
-	bool showActionHelp;
     bool tracking;
 	bool actionAnnotating;
 	bool initialized;
@@ -185,15 +194,13 @@ public:
                       thickness(2),
                       mode(method),
                       selection(-1),
-                      peopleAmount(0),
                       currentActionType(""),
                       ratio(ratioYX),
                       showHelp(true),
-					  showActionHelp(false),
                       tracking(track),
 		              actionAnnotating(action),
                       initialized(false),
-                      annotations(),
+                      annotations(totalFrameN),
                       drawing(),
                       currentFrame()
     {}
@@ -217,12 +224,17 @@ public:
                     newAnnotation.mode = mode;
                     newAnnotation.actionType = currentActionType;
                     
-                    Ptr<SKCFDCF> tmp = initTracker(currentFrame, boundingRect(previous.area));
-                    tmp->processFrame(frame);
-                    tmp->getTrackedArea(newAnnotation.area);
+                    Rect area = boundingRect(previous.area);
                     
-                    if (frameN < annotations.size())
-                        annotations[frameN].push_back(newAnnotation);
+                    if (area.area() > 1)
+                    {
+                        Ptr<SKCFDCF> tmp = initTracker(currentFrame, boundingRect(previous.area));
+                        tmp->processFrame(frame);
+                        tmp->getTrackedArea(newAnnotation.area);
+                    
+                        if (frameN < annotations.size())
+                            annotations[frameN].push_back(newAnnotation);
+                    }
                 }
             }
         }
@@ -236,22 +248,24 @@ public:
 		if (showHelp)
 			helpHUD(output);
 
-		if (showActionHelp)
-			helpActionHUB(output);
-
 
 		// display the existed annotation
 		for (int i = 0; i < annotations[currentFrameN].size(); i++)
 		{
-			Draw::displayPolygon(output, annotations[currentFrameN][i].area, Color::yellow, thickness, true);
-			Draw::displayPolygonNumberNAction(output, annotations[currentFrameN][i].area,
-				annotations[currentFrameN][i].ID, annotations[currentFrameN][i].actionType, true);
+            Draw::displayAnnotation(output, annotations[currentFrameN][i],
+                                    Color::yellow, Color::red, thickness, true);
 		}
 
 		// display the current drawing
 		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
-
-
+        
+        string currentID = (annotationIsSelected())?
+            to_string(annotations[currentFrameN][selection].ID) :
+            to_string(peopleAmount);
+        
+        string info =  currentID + ": " + currentActionType;
+        Draw::displayPolygonInfo(output, info, drawing, Color::red, Color::yellow);
+        
 		if (mode == POLY)
 		{
 			if (drawing.size() > 0)
@@ -279,7 +293,8 @@ public:
 				vector<Point2f> _rRect(4);
 				_rRect[0] = drawing.back();
 				_rRect[1] = drawing.front();
-				getRRect(mousePos, ratio, _rRect[0], _rRect[1], _rRect[2], _rRect[3]);
+				getRRect(mousePos, ratio, _rRect[0], _rRect[1],
+                         _rRect[2], _rRect[3]);
 
 				for (size_t i = 0; i < _rRect.size(); i++)
 				{
@@ -302,7 +317,8 @@ public:
 			{
 				vector<Point2f> _aRect(4);
 				_aRect[0] = drawing.front();
-				getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
+				getARect(mousePos, ratio, _aRect[0], _aRect[1],
+                         _aRect[2], _aRect[3]);
 				rectangle(output, _aRect[0],
 					_aRect[2],
 					Color::blue,
@@ -345,7 +361,9 @@ public:
 
     virtual bool readActionTypeFile(const string &filename);
 
-    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f) = 0;
+    virtual void write(const string &filename,
+                       const float scaleX = 1.0f,
+                       const float scaleY = 1.0f) = 0;
 
     virtual int read(const string &filename) = 0;
 };
@@ -367,17 +385,75 @@ public:
                     int   method  = POLY,
                     bool  track   =  true,
                     bool  action  =  false,
-                    int totalFrameN = 0):AnnotateProcess(ratioYX, method, track, action, totalFrameN)
+                    int totalFrameN = 0)
+        :AnnotateProcess(ratioYX, method, track, action, totalFrameN)
     {}
 
     static int parse(const string &filename, vector<vector<Annotation>> &annotation);
     virtual int read(const string &filename);
-    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
+    virtual void write(const string &filename,
+                       const float scaleX = 1.0f,
+                       const float scaleY = 1.0f);
 
 };
 
 class XMLAnnotateProcess: public AnnotateProcess
 {
+    struct ATTR
+    {
+        static string VERSION;
+        static string ENCODING;
+        static string FRAMEC;
+        static string ID;
+        static string TARGETC;
+        static string ACTION;
+        static string TARGET1;
+        static string TARGET2;
+    };
+
+    struct NODE
+    {
+        static string SEQ;
+        static string FRAME;
+        static string TARGET;
+        static string LOCATION;
+        static string MATCHING;
+        static string MATCH;
+    };
+
+    /*
+     * Convert string to the right encoding 
+     */
+    static char *toChar(xml_document<> &doc, const string &name);
+    /**
+     * creates an attribute with name and value
+     */
+    static xml_attribute<char> *attribute(xml_document<> &doc,
+                                          const string &name,
+                                          const string &value);
+    /*
+     *  creates a node with the name
+     */
+    static xml_node<char> *node(xml_document<> &doc, const string &name);
+    
+    /*
+     * reads an attribute from the node and converts it to type T
+     */
+    template<class T>
+    static T readAttribute(xml_node<> &node, const string &name)
+    {
+        char *data = node.first_attribute(name.c_str())->value();
+        istringstream ss(data);
+        T _tmp;
+        ss >> _tmp;
+        return _tmp;
+    }
+    /*parses a string with the following format
+     *
+     * x1,y1,x2,y2,x3,y3,....xn,yn
+     */
+    static void parseLocation(const string &loc, vector<Point2f> &pts);
+    
 public:
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
@@ -391,12 +467,17 @@ public:
                     int   method  = POLY,
                     bool  track   =  true,
                     bool  action  =  false,
-                       int totalFrameN = 0): AnnotateProcess(ratioYX, method, track, action, totalFrameN)
+                       int totalFrameN = 0)
+        : AnnotateProcess(ratioYX, method, track, action, totalFrameN)
     {}
 
-    virtual void write(const string &filename, const float scaleX = 1.0f, const float scaleY = 1.0f);
-    virtual void allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value);
-    static int parse(const string &filename, vector<vector<Annotation>> &annotation);
+    virtual void write(const string &filename,
+                       const float scaleX = 1.0f,
+                       const float scaleY = 1.0f);
+    
+    static int parse(const string &filename,
+                     vector<vector<Annotation>> &annotation);
+    
     virtual int read(const string &filename);
 };
 #endif

@@ -32,7 +32,6 @@
 
  **************************************************************************************************
  **************************************************************************************************/
-
 #include "aprocess.h"
 
 
@@ -46,6 +45,8 @@ const Scalar Color::teal = Scalar(255, 255, 0);
 const Scalar Color::orange = Scalar(22,134,241);
 
 
+int AnnotateProcess::peopleAmount = 0;
+
 
 bool InputFactory::isVideoFile(const string &sequence)
 {
@@ -57,8 +58,6 @@ bool InputFactory::isWebFile(const string &sequence)
 }
 bool InputFactory::isStringSequence(const string &sequence)
 {
-//    char res0[sequence.length() * 2];
-//    char res1[sequence.length() * 2];
     char *res0 = new char[sequence.length() * 2];
     char *res1 = new char[sequence.length() * 2];
     sprintf(res0, sequence.c_str(), 0);
@@ -186,51 +185,47 @@ Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Po
     return Point2f( -tmp.y, tmp.x);
 }
 
-void Draw::displayPolygonNumber(Mat &image, const vector<Point2f> &pts, int number)
-{
-	if (pts.size() > 0)
-	{
-		auto ref = std::min_element(pts.begin(), pts.end(),
-			[](const Point2f &p1, const Point2f &p2)
-		{
-			return p1.y < p2.y;
-		});
 
-		rectangle(image, *ref - Point2f(0, 10),
-			*ref + Point2f(70, 0),
-			Color::yellow, -1);
 
-		string display = "";
-		display += to_string(number);
-		putText(image, display, *ref - Point2f(0, 2),
-			FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
-	}
-}
-
-void Draw::displayPolygonNumberNAction(Mat &image, const vector<Point2f> &pts, int number, string actionType, bool tracking)
+void Draw::displayPolygonInfo(cv::Mat &image,
+                              const string &info,
+                              const vector<Point2f> &pts,
+                              const Scalar &background,
+                              const Scalar &foreground)
 {
     if (pts.size() > 0)
     {
         auto ref = std::min_element(pts.begin(), pts.end(),
-                                  [](const Point2f &p1, const Point2f &p2)
-                                  {
-                                      return p1.y < p2.y;
-                                  });
-
+                                    [](const Point2f &p1, const Point2f &p2)
+                                    {
+                                        return p1.y < p2.y;
+                                    });
+        
         rectangle(image, *ref - Point2f(0,10),
                          *ref + Point2f(70,0),
-                        Color::yellow, -1);
-
-		string display = "";
-		if (tracking)
-			display += "T ";
-		display += to_string(number);
-		display += " - ";
-		display += actionType;
-        putText(image, display, *ref - Point2f(0,2),
-                FONT_HERSHEY_SIMPLEX, .3, Color::red, 1, CV_AA);
+                         background, -1);
+        
+        putText(image, info, *ref - Point2f(0,2),
+                FONT_HERSHEY_SIMPLEX, .3, foreground, 1, CV_AA);
     }
 }
+
+void Draw::displayAnnotation(cv::Mat &image,
+                             Annotation &ann,
+                             const Scalar &background,
+                             const Scalar &foreground,
+                             int thickness,
+                             bool close)
+{
+    displayPolygon(image, ann.area, background, thickness, close);
+    string info = ((ann.tracking)?"[T] ":"") + to_string(ann.ID) +
+                  ": " + ann.actionType;
+    
+    displayPolygonInfo(image, info, ann.area, background, foreground);
+
+}
+
+
 void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &color, int thickness, bool close)
 {
     int i = 0;
@@ -319,23 +314,22 @@ void AnnotateProcess::helpHUD(Mat &image)
 	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
 	help.push_back(" Options:");
     help.push_back(ss.str());
-    help.push_back(" (-) : Reduce ratio 0.1");
-    help.push_back(" (+) : Increase ratio 0.1");
     help.push_back(" (h) : Toggle this help ");
     help.push_back(" (n) : Next frame");
-	if(actionAnnotating)
-		help.push_back(" (l) : Get the action class list");
+    help.push_back(" (p) : Previous frame");
     help.push_back(" (a) : Accept annotation");
     help.push_back(" (d) : Delete annotation");
     help.push_back(" (b) : Remove last point/annotation");
     help.push_back(" (c) : Clear all annotations");
     help.push_back(" (SPACE) : Pause/play video");
     help.push_back(" (SHIFT + Click) : Select Polygon");
+    help.push_back(" (-) : Reduce ratio 0.1");
+    help.push_back(" (+) : Increase ratio 0.1");
     help.push_back(" (ESC) : Exit Annotate");
 
 
-    Rect region(0, 0, characterWidth * fsize + margin,
-                help.size() * fsize + margin);
+    Rect region(0, 0, (characterWidth * fsize + margin) * 2,
+                      help.size()    * fsize + margin);
     region &= Rect(0,0, image.cols, image.rows);
 
     GaussianBlur(image(region),
@@ -347,50 +341,39 @@ void AnnotateProcess::helpHUD(Mat &image)
         putText(image, help[i], Point(fsize,h),
                 FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
     }
-
-}
-
-void AnnotateProcess::helpActionHUB(Mat &image) 
-{
-	int margin = 10;
-	int fsize = 15;
-	int characterWidth = 13;
-
-	vector<string> help;
-	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
-	help.push_back(" Annotation Number : " + std::to_string(annotations.at(currentFrameN).size()));
-	help.push_back(" Options:");
-	for (int i = 0; i < actionType.size(); i++)
-	{
-		help.push_back(" (" + std::to_string(i) + ") : " + actionType.at(i));
-	}
-
-	Rect region(0, 0, characterWidth * fsize + margin,
-		help.size() * fsize + margin);
-	region &= Rect(0, 0, image.cols, image.rows);
-
-	GaussianBlur(image(region),
-		image(region),
-		Size(0, 0), 5);
-
-	for (int i = 0, h = fsize; i < help.size(); i++, h += fsize)
-	{
-		if ((i-3) < 0)
-		{
-			putText(image, help[i], Point(fsize, h),
-				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
-		} 
-		else if (currentActionType == actionType.at(i-3))
-		{
-			putText(image, help[i], Point(fsize, h),
-				FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
-		}
-		else
-		{
-			putText(image, help[i], Point(fsize, h),
-				FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
-		}
-	}
+    
+    if (actionAnnotating)
+    {
+        vector<string> actionList;
+        actionList.push_back("");
+        actionList.push_back("Actions:");
+        
+        int header = actionList.size();
+        
+        for (size_t i = 0; i < actionType.size(); i++)
+            actionList.push_back(" (" + std::to_string(i) + ") : " + actionType.at(i));
+        
+        int leftMargin = (characterWidth * fsize + margin * 2);
+        
+        for (int i = 0, h = fsize; i < actionList.size(); i++, h += fsize)
+        {
+            if ((i-header) < 0)
+            {
+                putText(image, actionList[i], Point(leftMargin, h),
+                        FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+            }
+            else if (currentActionType == actionType.at(i-header))
+            {
+                putText(image, actionList[i], Point(leftMargin, h),
+                        FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
+            }
+            else
+            {
+                putText(image, actionList[i], Point(leftMargin, h),
+                        FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
+            }
+        }
+    }
 }
 
 Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
@@ -524,18 +507,10 @@ void AnnotateProcess::keyboardInput(int key)
         while (!annotations[currentFrameN].empty())
             annotations[currentFrameN].pop_back();
 
-//		if (tracking)
-//		{
-//			for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
-//			{
-//				delete annotations[currentFrameN].at(i).tracker;
-//			}
-//		}
     }
     if (key == 'h' || key == 'H')
     {
         showHelp = !showHelp;
-        showActionHelp = false;
     }
 
     if (key == 'd' || key == 'D')
@@ -563,13 +538,6 @@ void AnnotateProcess::keyboardInput(int key)
         ratio += .1;
     }
 
-    if (actionAnnotating && (key == 'l' || key == 'L'))
-    {
-        // add the action annotation code
-        showActionHelp = !showActionHelp;
-        showHelp = false;
-    }
-
     for (int i = 0; i < actionType.size(); i++)
     {
         if (key == ('0' + i))
@@ -586,13 +554,17 @@ void AnnotateProcess::remAnnotation()
     drawing.clear();
     selection = -1;
 }
+bool AnnotateProcess::annotationIsSelected()
+{
+    return (selection >= 0 && selection < annotations[currentFrameN].size());
+}
 
 void AnnotateProcess::newAnnotation()
 {
     if (acceptPolygon(drawing, mode))
     {
         Annotation tmp;
-		Rect area = boundingRect(drawing);
+		//Rect area = boundingRect(drawing);
         if (selection < 0)
         {
             tmp.area = drawing;
@@ -611,7 +583,6 @@ void AnnotateProcess::newAnnotation()
         }
         drawing.clear();
         selection = -1;
-
     }
 }
 
@@ -644,10 +615,6 @@ int CSVAnnotateProcess::parse(const string &filename, vector<vector<Annotation>>
     ifstream file;
     file.open(filename);
     string line;
-
-    //    vector<vector<vector<Point2f>>> _data;
-    //
-    //    _data.clear();
     ann.clear();
 
     int currentFrameN = 0;
@@ -660,9 +627,6 @@ int CSVAnnotateProcess::parse(const string &filename, vector<vector<Annotation>>
 
         istringstream streamline(line);
         string annotation;
-
-        //        vector<vector<Point2f>> _line;
-        //        _data.push_back(_line);
 
         vector<Annotation> list;
         while (getline(streamline, annotation, '|'))
@@ -720,157 +684,169 @@ void CSVAnnotateProcess::write(const string &filename, const float scaleX, const
     }
 }
 
+string XMLAnnotateProcess::ATTR::VERSION = "version";
+string XMLAnnotateProcess::ATTR::ENCODING = "encoding";
+string XMLAnnotateProcess::ATTR::FRAMEC   = "frameCount";
+string XMLAnnotateProcess::ATTR::ID       = "id";
+string XMLAnnotateProcess::ATTR::TARGETC  = "targetCount";
+string XMLAnnotateProcess::ATTR::ACTION   = "action";
+string XMLAnnotateProcess::ATTR::TARGET1  = "target1";
+string XMLAnnotateProcess::ATTR::TARGET2  = "target2";
+
+string XMLAnnotateProcess::NODE::SEQ    = "sequence";
+string XMLAnnotateProcess::NODE::FRAME  = "frame";
+string XMLAnnotateProcess::NODE::TARGET = "target";
+string XMLAnnotateProcess::NODE::LOCATION   = "location";
+string XMLAnnotateProcess::NODE::MATCHING = "matching";
+string XMLAnnotateProcess::NODE::MATCH    = "match";
+
 
 void XMLAnnotateProcess::write(const string &filename, const float scaleX, const float scaleY)
 {
     ofstream file;
     file.open(filename);
     xml_document<> doc;
-
-    // add the xml declaration
+    int cameraID = 0;
+    
+    // add declaration
     xml_node<>* decl = doc.allocate_node(node_declaration);
-    decl->append_attribute(doc.allocate_attribute("version", "1.0"));
-    decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+    decl->append_attribute(attribute(doc, ATTR::VERSION, "1.0"));
+    decl->append_attribute(attribute(doc, ATTR::ENCODING, "utf-8"));
     doc.append_node(decl);
-
-    // create the root node
-    xml_node<>* root = doc.allocate_node(node_element, "video");
-    doc.append_node(root);
-    allocateAttrToNodeXML(doc, root, "totalPeopleAmount", std::to_string(peopleAmount));
-
+    
+    // create the sequence node
+    xml_node<>* sequence = node(doc, NODE::SEQ);
+    sequence->append_attribute(attribute(doc, ATTR::FRAMEC, to_string(annotations.size())));
+    sequence->append_attribute(attribute(doc, ATTR::ID, toChar(doc, to_string(cameraID))));
+    doc.append_node(sequence);
+    
+    
     for (size_t i = 0; i < annotations.size(); i++)
     {
-        xml_node<> *node = doc.allocate_node(node_element, "frame");
-        root->append_node(node);
-        // write the frame number
-        allocateAttrToNodeXML(doc, node, "frameNumber", std::to_string(i));
-
+        xml_node<> *frame = node(doc, NODE::FRAME);
+        frame->append_attribute(attribute(doc, ATTR::ID, to_string(i)));
+        frame->append_attribute(attribute(doc, ATTR::TARGETC, to_string(annotations[i].size())));
+        
         for (size_t j = 0; j < annotations[i].size(); j++)
         {
-            xml_node<> *sub_node = doc.allocate_node(node_element, "box");
-            node->append_node(sub_node);
-
-            // add the box number of one frame
-            // allocateAttrToNodeXML(doc, sub_node, "boxNumber", std::to_string(j));
-
-            // add the person ID
-            allocateAttrToNodeXML(doc, sub_node, "personID", std::to_string(annotations[i][j].ID));
-
-            // add the action type for this box
-            allocateAttrToNodeXML(doc, sub_node, "actionType", annotations[i][j].actionType);
-
-			// add the mode for this box
-			allocateAttrToNodeXML(doc, sub_node, "mode", std::to_string(annotations[i][j].mode));
-
+            xml_node<> *target = node(doc, NODE::TARGET);
+            
+            target->append_attribute(attribute(doc, ATTR::ID, to_string(j)));
+            target->append_attribute(attribute(doc, ATTR::ACTION, annotations[i][j].actionType));
+            
+            xml_node<> *loc   = node(doc, NODE::LOCATION);
+            
+            stringstream ss;
             for (size_t k = 0; k < annotations[i][j].area.size(); k++)
             {
-                std::string pointNum = "pointNumber";
-                pointNum += std::to_string(k);
-                char *pointNumChar = doc.allocate_string(pointNum.c_str());
-
-                std::string pointValue = std::to_string(annotations[i][j].area[k].x * scaleX);
-                pointValue += ",";
-                pointValue += std::to_string(annotations[i][j].area[k].y * scaleY);
-
-                // add the pointNumber information
-                allocateAttrToNodeXML(doc, sub_node, pointNumChar, pointValue);
+                bool final = (k == annotations[i][j].area.size() - 1);
+                ss << (annotations[i][j].area[k].x * scaleX) << "," <<
+                      (annotations[i][j].area[k].y * scaleY) << ((final)? "" : ",");
             }
+            
+            loc->value(doc.allocate_string(toChar(doc, ss.str())));
+            
+            target->append_node(loc);
+            frame->append_node(target);
         }
+        
+        sequence->append_node(frame);
     }
-
+    
     // print out the xml document
     file << doc;
     file.close();
 }
 
-void XMLAnnotateProcess::allocateAttrToNodeXML(xml_document<> &doc, xml_node<> *node, const char * name, string value)
+
+
+/*
+ * Convert string to the right encoding
+ */
+ char *XMLAnnotateProcess::toChar(xml_document<> &doc, const string &name)
 {
-    // convert string to char
-    char *CharTmp = doc.allocate_string(value.c_str());
-    xml_attribute<> *attr= doc.allocate_attribute(name, CharTmp);
-    node->append_attribute(attr);
+    return doc.allocate_string(name.c_str());
+}
+/**
+ * creates an attribute with name and value
+ */
+ xml_attribute<char> *XMLAnnotateProcess::attribute(xml_document<> &doc, const string &name, const string &value)
+{
+    return doc.allocate_attribute(toChar(doc, name), toChar(doc, value));
+}
+/*
+ *  creates a node with the name
+ */
+ xml_node<char> *XMLAnnotateProcess::node(xml_document<> &doc, const string &name)
+{
+    return doc.allocate_node(node_element, toChar(doc, name));
+}
+
+
+/*parses a string with the following format
+ *
+ * x1,y1,x2,y2,x3,y3,....xn,yn
+ */
+ void XMLAnnotateProcess::parseLocation(const string &loc, vector<Point2f> &pts)
+{
+    istringstream l(loc);
+    string x,y;
+    while (getline(l, x, ',') && getline(l, y,','))
+    {
+        pts.push_back(Point2f(atof(x.c_str()), atof(y.c_str())));
+    }
 }
 
 int XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
 {
-    string input_xml;
-    std::string line;
-    std::ifstream in(filename);
-    // read the file into input_XML
-    while (getline(in, line))
-        input_xml += line;
-
-    if (input_xml == "")
-        return 0;
-
-    vector<char> xml_copy(input_xml.begin(), input_xml.end());
-    xml_copy.push_back('\0');
-
-    xml_document<> doc;
-    doc.parse<parse_no_data_nodes>(&xml_copy[0]);
-
-    ann.clear();
-
-    int currentFrameN = 0;
-
-    // parse the root node
-    xml_node<>* cur_node = doc.first_node("video");
-    int peopleAmount = atoi(cur_node->first_attribute()->value());
-
-    // frame loop
-    for (xml_node<> *frame_node = cur_node->first_node(); frame_node; frame_node = frame_node->next_sibling())
-    {
-        vector<Annotation> instance;
-        currentFrameN = atoi(frame_node->first_attribute()->value());
-
-        // box loop
-        for (xml_node<> *box_node = frame_node->first_node(); box_node; box_node = box_node->next_sibling())
-        {
-            Annotation tmp;
-            vector<Point2f> pts;
-            for (xml_attribute<> *point = box_node->first_attribute(); point; point = point->next_attribute())
-            {
-                if (strcmp(point->name(), "actionType") == 0)
-                {
-                    tmp.actionType = point->value();
-                    continue;
-                }
-
-                if (strcmp(point->name(), "mode") == 0)
-                {
-                    tmp.mode = atoi(point->value());
-                    continue;
-                }
-
-                if (strcmp(point->name(), "personID") == 0)
-                {
-                    tmp.ID = atoi(point->value());
-                    continue;
-                }
-
-                std::string tmp(point->name());
-                if (tmp.find("pointNumber") == string::npos) { continue; }
-                char *value = point->value();
-                // parse the value
-                char value_array[50];
-                strncpy(value_array, value, sizeof(value_array));
-                char *single_axis = strtok(value_array, ",");
-                std::vector<char*> xy;
-                while (NULL != single_axis)
-                {
-                    xy.push_back(single_axis);
-                    single_axis = strtok(NULL, ",");
-                }
-                pts.push_back(Point2f(atof(xy[0]), atof(xy[1])));
-            }
-            tmp.area = pts;
-            instance.push_back(tmp);
-        }
-        
-        ann.push_back(instance);
-    }
     
-    return currentFrameN;
+    ifstream file(filename);
+    vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    ann.clear();
+    
+    
+    xml_document<> doc;
+    xml_node<>* sequence;
+    doc.parse<0>(&buffer[0]);
+    
+    sequence = doc.first_node(NODE::SEQ.c_str());
+    
+    
+    size_t sFC = readAttribute<size_t>(*sequence, ATTR::FRAMEC);
+      // size_t sID = readAttribute<size_t>(*sequence, ATTR::ID);
+    
+    ann.resize(sFC);
+    
+    for (xml_node<> *frame = sequence->first_node(NODE::FRAME.c_str());
+                     frame;
+                     frame = frame->next_sibling())
+    {
+        size_t fID = readAttribute<size_t>(*frame, ATTR::ID);
+        //size_t fTC = readAttribute<size_t>(*frame, ATTR::TARGETC);
+        
+        
+        for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
+                        target;
+                        target = target->next_sibling())
+        {
+            size_t tID        = readAttribute<size_t>(*target, ATTR::ID);
+            string tAction = readAttribute<string>(*target, ATTR::ACTION);
+            xml_node<char> *loc = target->first_node(NODE::LOCATION.c_str());
+            
+            if (loc)
+            {
+                string location(loc->value());
+                Annotation a;
+                a.tracking = false;
+                a.ID = tID;
+                a.actionType = tAction;
+                parseLocation(location, a.area);
+                ann[fID].push_back(a);
+            }
+        }
+    }
+    return 0;
 }
 
 int XMLAnnotateProcess::read(const string &filename)

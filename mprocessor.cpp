@@ -114,14 +114,14 @@ void SeekProcessor::run(int startFrame)
         {
             if (_showInput && !frame.empty())
                 cv::imshow(_inputWindowName, frame);
-            auto start_time = chrono::high_resolution_clock::now();
+           // auto start_time = chrono::high_resolution_clock::now();
 
             if (_functor)
                 _functor(frameN, frame, frameOut);
             else if (_process)
                 _process->operator()(frameN, frame, frameOut);
 
-            auto end_time = chrono::high_resolution_clock::now();
+            //auto end_time = chrono::high_resolution_clock::now();
             //auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count();
 
             if (_showOutput && !frameOut.empty())
