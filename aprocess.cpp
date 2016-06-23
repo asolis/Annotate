@@ -47,7 +47,26 @@ const Scalar Color::orange = Scalar(22,134,241);
 
 int AnnotateProcess::peopleAmount = 0;
 
-
+bool InputFactory::filenames(const string &folder, vector<string> &filenames)
+{
+    filenames.clear();
+    if (InputFactory::isFolderSequence(folder))
+    {
+        Files::listImages(folder, filenames);
+        
+        
+        for (size_t i = 0; i < filenames.size(); i++)
+        {
+           size_t pos =  filenames[i].find_last_of(viva::Files::PATH_SEPARATOR);
+           if (pos != string::npos)
+               filenames[i] = filenames[i].substr(pos+ 1);
+        }
+        
+        return true;
+    }
+    return false;
+    
+}
 bool InputFactory::isVideoFile(const string &sequence)
 {
     return (viva::Files::isFile(sequence));
@@ -610,81 +629,10 @@ bool AnnotateProcess::readActionTypeFile(const string &filename)
     }
 }
 
-int CSVAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
-{
-    ifstream file;
-    file.open(filename);
-    string line;
-    ann.clear();
-
-    int currentFrameN = 0;
-
-    while (file)
-    {
-        if (!getline(file, line)) break;
-
-        currentFrameN++;
-
-        istringstream streamline(line);
-        string annotation;
-
-        vector<Annotation> list;
-        while (getline(streamline, annotation, '|'))
-        {
-            Annotation tmp;
-
-            istringstream streamannot(annotation);
-            string x, y;
-            while (getline(streamannot, x, ',') &&
-                   getline(streamannot, y, ',') )
-            {
-                tmp.area.push_back(Point2f(atof(x.c_str()),
-                                                    atof(y.c_str())));
-            }
-            list.push_back(tmp);
-            streamannot.clear();
-        }
-        ann.push_back(list);
-        streamline.clear();
-
-    }
-    file.close();
-    return (currentFrameN)?currentFrameN - 1 : currentFrameN;
-}
-
-int CSVAnnotateProcess::read(const string &filename)
-{
-
-    drawing.clear();
-    return parse(filename, annotations);
-}
-
-void CSVAnnotateProcess::write(const string &filename, const float scaleX, const float scaleY)
-{
-    ofstream file;
-    file.open(filename);
-    for (size_t i = 0; i < annotations.size(); i++)
-    {
-
-        for (size_t j = 0; j < annotations[i].size(); j++)
-        {
-            for (size_t k = 0; k < annotations[i][j].area.size(); k++)
-            {
-
-                file << annotations[i][j].area[k].x * scaleX << ", "
-                << annotations[i][j].area[k].y * scaleY;
-
-                if ( k != (annotations[i][j].area.size() - 1))
-                    file << ", ";
-            }
-            if ( j != (annotations[i].size() - 1))
-                file << "|";
-        }
-        file << endl;
-    }
-}
 
 string XMLAnnotateProcess::ATTR::VERSION = "version";
+string XMLAnnotateProcess::ATTR::FILENAME = "filename";
+string XMLAnnotateProcess::ATTR::TYPE     = "type";
 string XMLAnnotateProcess::ATTR::ENCODING = "encoding";
 string XMLAnnotateProcess::ATTR::FRAMEC   = "frameCount";
 string XMLAnnotateProcess::ATTR::ID       = "id";
@@ -692,6 +640,11 @@ string XMLAnnotateProcess::ATTR::TARGETC  = "targetCount";
 string XMLAnnotateProcess::ATTR::ACTION   = "action";
 string XMLAnnotateProcess::ATTR::TARGET1  = "target1";
 string XMLAnnotateProcess::ATTR::TARGET2  = "target2";
+string XMLAnnotateProcess::ATTR::WIDTH    = "width";
+string XMLAnnotateProcess::ATTR::HEIGHT   = "height";
+
+string XMLAnnotateProcess::ATTR::T_FOLDER = "folder";
+string XMLAnnotateProcess::ATTR::T_FILE   = "file";
 
 string XMLAnnotateProcess::NODE::SEQ    = "sequence";
 string XMLAnnotateProcess::NODE::FRAME  = "frame";
@@ -701,24 +654,39 @@ string XMLAnnotateProcess::NODE::MATCHING = "matching";
 string XMLAnnotateProcess::NODE::MATCH    = "match";
 
 
-void XMLAnnotateProcess::write(const string &filename, const float scaleX, const float scaleY)
+void XMLAnnotateProcess::writeHeader(xml_document<> &doc)
 {
-    ofstream file;
-    file.open(filename);
-    xml_document<> doc;
-    int cameraID = 0;
-    
     // add declaration
     xml_node<>* decl = doc.allocate_node(node_declaration);
     decl->append_attribute(attribute(doc, ATTR::VERSION, "1.0"));
     decl->append_attribute(attribute(doc, ATTR::ENCODING, "utf-8"));
     doc.append_node(decl);
+}
+void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
+{
+    vector<string> filenames;
+    bool folder = InputFactory::isFolderSequence(input);
+    if (folder)
+    {
+        InputFactory::filenames(input, filenames);
+        folder = filenames.size() == annotations.size();
+    }
     
     // create the sequence node
     xml_node<>* sequence = node(doc, NODE::SEQ);
     sequence->append_attribute(attribute(doc, ATTR::FRAMEC, to_string(annotations.size())));
-    sequence->append_attribute(attribute(doc, ATTR::ID, toChar(doc, to_string(cameraID))));
+    sequence->append_attribute(attribute(doc, ATTR::ID, toChar(doc, to_string(ID))));
+    sequence->append_attribute(attribute(doc, ATTR::WIDTH, toChar(doc, to_string(width))));
+    sequence->append_attribute(attribute(doc, ATTR::HEIGHT, toChar(doc, to_string(height))));
     doc.append_node(sequence);
+    
+    if (folder)
+    {
+        sequence->append_attribute(attribute(doc, ATTR::TYPE, ATTR::T_FOLDER));
+    }
+    else
+        sequence->append_attribute(attribute(doc, ATTR::TYPE, ATTR::T_FILE));
+
     
     
     for (size_t i = 0; i < annotations.size(); i++)
@@ -727,11 +695,14 @@ void XMLAnnotateProcess::write(const string &filename, const float scaleX, const
         frame->append_attribute(attribute(doc, ATTR::ID, to_string(i)));
         frame->append_attribute(attribute(doc, ATTR::TARGETC, to_string(annotations[i].size())));
         
+        if (folder)
+            frame->append_attribute(attribute(doc, ATTR::FILENAME, filenames[i]));
+            
         for (size_t j = 0; j < annotations[i].size(); j++)
         {
             xml_node<> *target = node(doc, NODE::TARGET);
             
-            target->append_attribute(attribute(doc, ATTR::ID, to_string(j)));
+            target->append_attribute(attribute(doc, ATTR::ID, to_string(annotations[i][j].ID)));
             target->append_attribute(attribute(doc, ATTR::ACTION, annotations[i][j].actionType));
             
             xml_node<> *loc   = node(doc, NODE::LOCATION);
@@ -740,8 +711,8 @@ void XMLAnnotateProcess::write(const string &filename, const float scaleX, const
             for (size_t k = 0; k < annotations[i][j].area.size(); k++)
             {
                 bool final = (k == annotations[i][j].area.size() - 1);
-                ss << (annotations[i][j].area[k].x * scaleX) << "," <<
-                      (annotations[i][j].area[k].y * scaleY) << ((final)? "" : ",");
+                              ss << (annotations[i][j].area[k].x ) << "," <<
+                                    (annotations[i][j].area[k].y) << ((final)? "" : ",");
             }
             
             loc->value(doc.allocate_string(toChar(doc, ss.str())));
@@ -752,12 +723,20 @@ void XMLAnnotateProcess::write(const string &filename, const float scaleX, const
         
         sequence->append_node(frame);
     }
-    
+}
+
+void XMLAnnotateProcess::write(const string &filename)
+{
+    xml_document<> doc;
+    // add declaration
+    writeHeader(doc);
+    writeSequence(doc);
+    ofstream file;
+    file.open(filename);
     // print out the xml document
     file << doc;
     file.close();
 }
-
 
 
 /*
@@ -797,7 +776,60 @@ void XMLAnnotateProcess::write(const string &filename, const float scaleX, const
     }
 }
 
-int XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
+size_t XMLAnnotateProcess::readSequence(xml_node<> &sequence,
+                                        vector<vector<Annotation>> &ann,
+                                        vector<string> &filenames,
+                                        size_t &sequenceID,
+                                        int &width,
+                                        int &height)
+{
+   
+    size_t sFC = readAttribute<size_t>(sequence, ATTR::FRAMEC);
+    string fT  = readAttribute<string>(sequence, ATTR::TYPE);
+    sequenceID = readAttribute<size_t>(sequence, ATTR::ID);
+    width      = readAttribute<float>(sequence, ATTR::WIDTH);
+    height     = readAttribute<float>(sequence, ATTR::HEIGHT);
+    
+    ann.resize(sFC);
+    filenames.resize(sFC);
+    
+    size_t maxID = 0;
+    
+    for (xml_node<> *frame = sequence.first_node(NODE::FRAME.c_str());
+         frame;
+         frame = frame->next_sibling())
+    {
+        size_t fID = readAttribute<size_t>(*frame, ATTR::ID);
+        if (fT == ATTR::T_FOLDER)
+            filenames[fID] = (readAttribute<string>(*frame, ATTR::FILENAME));
+        
+        for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
+            target;
+            target = target->next_sibling())
+        {
+            size_t tID        = readAttribute<size_t>(*target, ATTR::ID);
+            string tAction = readAttribute<string>(*target, ATTR::ACTION);
+            xml_node<char> *loc = target->first_node(NODE::LOCATION.c_str());
+            
+            maxID = (tID > maxID)? tID : maxID;
+            
+            if (loc)
+            {
+                string location(loc->value());
+                Annotation a;
+                a.tracking = false;
+                a.ID = tID;
+                a.actionType = tAction;
+                parseLocation(location, a.area);
+                ann[fID].push_back(a);
+            }
+        }
+    }
+    return maxID;
+}
+
+
+size_t XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
 {
     
     ifstream file(filename);
@@ -812,41 +844,10 @@ int XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>>
     
     sequence = doc.first_node(NODE::SEQ.c_str());
     
-    
-    size_t sFC = readAttribute<size_t>(*sequence, ATTR::FRAMEC);
-      // size_t sID = readAttribute<size_t>(*sequence, ATTR::ID);
-    
-    ann.resize(sFC);
-    
-    for (xml_node<> *frame = sequence->first_node(NODE::FRAME.c_str());
-                     frame;
-                     frame = frame->next_sibling())
-    {
-        size_t fID = readAttribute<size_t>(*frame, ATTR::ID);
-        //size_t fTC = readAttribute<size_t>(*frame, ATTR::TARGETC);
-        
-        
-        for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
-                        target;
-                        target = target->next_sibling())
-        {
-            size_t tID        = readAttribute<size_t>(*target, ATTR::ID);
-            string tAction = readAttribute<string>(*target, ATTR::ACTION);
-            xml_node<char> *loc = target->first_node(NODE::LOCATION.c_str());
-            
-            if (loc)
-            {
-                string location(loc->value());
-                Annotation a;
-                a.tracking = false;
-                a.ID = tID;
-                a.actionType = tAction;
-                parseLocation(location, a.area);
-                ann[fID].push_back(a);
-            }
-        }
-    }
-    return 0;
+    vector<string> filenames;
+    size_t camera;
+    int sX, sY;
+    return readSequence(*sequence, ann, filenames, camera, sX, sY);
 }
 
 int XMLAnnotateProcess::read(const string &filename)

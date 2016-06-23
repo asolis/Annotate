@@ -137,6 +137,13 @@ void ImageListInput::initialize()
         _opened = false;
         return;
     }
+    Mat _tmp = imread(_filenames[0]);
+    _orgSize.width = _tmp.cols;
+    _orgSize.height= _tmp.rows;
+    
+    if (_size.width <= 0 || _size.height <=0 )
+        _size = _orgSize;
+    
     _it = _filenames.begin();
 	_current_position = 0;
     _opened = true;
