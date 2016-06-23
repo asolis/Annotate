@@ -630,7 +630,7 @@ bool AnnotateProcess::readActionTypeFile(const string &filename)
 }
 
 
-string XMLAnnotateProcess::ATTR::VERSION = "version";
+string XMLAnnotateProcess::ATTR::VERSION  = "version";
 string XMLAnnotateProcess::ATTR::FILENAME = "filename";
 string XMLAnnotateProcess::ATTR::TYPE     = "type";
 string XMLAnnotateProcess::ATTR::ENCODING = "encoding";
@@ -646,10 +646,10 @@ string XMLAnnotateProcess::ATTR::HEIGHT   = "height";
 string XMLAnnotateProcess::ATTR::T_FOLDER = "folder";
 string XMLAnnotateProcess::ATTR::T_FILE   = "file";
 
-string XMLAnnotateProcess::NODE::SEQ    = "sequence";
-string XMLAnnotateProcess::NODE::FRAME  = "frame";
-string XMLAnnotateProcess::NODE::TARGET = "target";
-string XMLAnnotateProcess::NODE::LOCATION   = "location";
+string XMLAnnotateProcess::NODE::SEQ      = "sequence";
+string XMLAnnotateProcess::NODE::FRAME    = "frame";
+string XMLAnnotateProcess::NODE::TARGET   = "target";
+string XMLAnnotateProcess::NODE::LOCATION = "location";
 string XMLAnnotateProcess::NODE::MATCHING = "matching";
 string XMLAnnotateProcess::NODE::MATCH    = "match";
 
@@ -681,13 +681,9 @@ void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
     doc.append_node(sequence);
     
     if (folder)
-    {
         sequence->append_attribute(attribute(doc, ATTR::TYPE, ATTR::T_FOLDER));
-    }
     else
         sequence->append_attribute(attribute(doc, ATTR::TYPE, ATTR::T_FILE));
-
-    
     
     for (size_t i = 0; i < annotations.size(); i++)
     {
