@@ -724,7 +724,6 @@ void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
         sequence->append_node(frame);
     }
 }
-
 void XMLAnnotateProcess::write(const string &filename)
 {
     xml_document<> doc;
@@ -760,8 +759,6 @@ void XMLAnnotateProcess::write(const string &filename)
 {
     return doc.allocate_node(node_element, toChar(doc, name));
 }
-
-
 /*parses a string with the following format
  *
  * x1,y1,x2,y2,x3,y3,....xn,yn
@@ -775,6 +772,7 @@ void XMLAnnotateProcess::write(const string &filename)
         pts.push_back(Point2f(atof(x.c_str()), atof(y.c_str())));
     }
 }
+
 
 size_t XMLAnnotateProcess::readSequence(xml_node<> &sequence,
                                         vector<vector<Annotation>> &ann,
@@ -808,7 +806,7 @@ size_t XMLAnnotateProcess::readSequence(xml_node<> &sequence,
             target = target->next_sibling())
         {
             size_t tID        = readAttribute<size_t>(*target, ATTR::ID);
-            string tAction = readAttribute<string>(*target, ATTR::ACTION);
+            string tAction    = readAttribute<string>(*target, ATTR::ACTION);
             xml_node<char> *loc = target->first_node(NODE::LOCATION.c_str());
             
             maxID = (tID > maxID)? tID : maxID;

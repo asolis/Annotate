@@ -402,16 +402,6 @@ class XMLAnnotateProcess: public AnnotateProcess
      */
     static void parseLocation(const string &loc, vector<Point2f> &pts);
     
-    
-    
-    
-    /*
-     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
-     *                  a negative value will remove any ratio constraint.
-     *                  a positive value > 1 will make the height longer than the width
-     *                  a positive value between 0 and 1 will make the width longer than the height
-     *                  a value of 1 will make a square selection
-     */
 public:
     
     struct ATTR
@@ -450,13 +440,20 @@ public:
     int height;
     int ID;
     
+    /*
+     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
+     *                  a negative value will remove any ratio constraint.
+     *                  a positive value > 1 will make the height longer than the width
+     *                  a positive value between 0 and 1 will make the width longer than the height
+     *                  a value of 1 will make a square selection
+     */
     
     XMLAnnotateProcess(const string &_input,
                        int inputWidth,
                        int inputHeight,
                        int sequenceID,
                        float ratioYX = -1.f,
-                       int   method  = POLY,
+                       int   method  =  AXIS_RECT,
                        bool  track   =  true,
                        bool  action  =  false,
                        int totalFrameN = 0)
@@ -465,15 +462,12 @@ public:
     {}
     
     virtual void write(const string &filename);
-    virtual int   read(const string &filename);
-    
     static  void writeHeader(xml_document<> &doc);
     virtual void writeSequence(xml_document<> &doc);
-   
+    
+    virtual int   read(const string &filename);
     static size_t parse(const string &filename,
                      vector<vector<Annotation>> &annotation);
-    
-    
     static size_t readSequence(xml_node<> &sequence,
                                vector<vector<Annotation>> &ann,
                                vector<string> &filenames,
