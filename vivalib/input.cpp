@@ -80,29 +80,29 @@ bool VideoInput::getFrame(Mat &frame)
         _opened = false;
         return false;
     }
-	_CameraInput.retrieve(frame);
-	_orgSize = frame.size();
-	if (_size.width < 0 && _size.height < 0)
-	{
+    _CameraInput.retrieve(frame);
+    _orgSize = frame.size();
+    if (_size.width < 0 && _size.height < 0)
+    {
 
-	}
-	else if (_size.width < 0 && _size.height > 0)
-	{
-		resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
-	}
-	else if (_size.width > 0 && _size.height < 0)
-	{
-		resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
-	}
-	else if (_size.width != frame.cols && _size.height != frame.rows)
-	{
-		resize(frame, frame, _size);
-	}
-	if (_convert)
-		cvtColor(frame, frame, _conversionFlag);
-
-
-       
+    }
+    else if (_size.width < 0 && _size.height > 0)
+    {
+        resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
+    }
+    else if (_size.width > 0 && _size.height < 0)
+    {
+        resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
+    }
+    else if (_size.width != frame.cols && _size.height != frame.rows)
+    {
+        resize(frame, frame, _size);
+    }
+    if (_convert)
+        cvtColor(frame, frame, _conversionFlag);
+    
+    
+    
     
     return true;
 }
@@ -171,7 +171,7 @@ bool ImageListInput::getFrame(Mat &frame)
         }
         if (_convert)
             cvtColor(frame, frame, _conversionFlag);
-        
+
         _size.width  = frame.cols;
         _size.height = frame.rows;
         _it++;
@@ -181,43 +181,43 @@ bool ImageListInput::getFrame(Mat &frame)
 }
 bool ImageListInput::getFrame(Mat &frame, int seek)
 {
-	// move the position
-	_current_position += seek;
+    // move the position
+    _current_position += seek;
 
-	// check if the _current_position out of range
-	if (_current_position < 0 || _current_position >= _filenames.size())
-	{
-		// return false and do nothing
-		return false;
-	}
+    // check if the _current_position out of range
+    if (_current_position < 0 || _current_position >= _filenames.size())
+    {
+        // return false and do nothing
+        return false;
+    }
 
-	// read the image
-	frame = imread(_filenames.at(_current_position));
+    // read the image
+    frame = imread(_filenames.at(_current_position));
 
-	_orgSize = frame.size();
-	if (_size.width < 0 && _size.height < 0)
-	{
+    _orgSize = frame.size();
+    if (_size.width < 0 && _size.height < 0)
+    {
 
-	}
-	else if (_size.width < 0 && _size.height > 0)
-	{
-		resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
-	}
-	else if (_size.width > 0 && _size.height < 0)
-	{
-		resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
-	}
-	else if (_size.width != frame.cols && _size.height != frame.rows)
-	{
-		resize(frame, frame, _size);
-	}
-	if (_convert)
-		cvtColor(frame, frame, _conversionFlag);
-
-	_size.width = frame.cols;
-	_size.height = frame.rows;
-
-	return true;
+    }
+    else if (_size.width < 0 && _size.height > 0)
+    {
+        resize(frame, frame, Size(_orgSize.width*_size.height / _orgSize.height, _size.height));
+    }
+    else if (_size.width > 0 && _size.height < 0)
+    {
+        resize(frame, frame, Size(_size.width, _orgSize.height * _size.width / _orgSize.width));
+    }
+    else if (_size.width != frame.cols && _size.height != frame.rows)
+    {
+        resize(frame, frame, _size);
+    }
+    if (_convert)
+        cvtColor(frame, frame, _conversionFlag);
+    
+    _size.width = frame.cols;
+    _size.height = frame.rows;
+    
+    return true;
 }
 int ImageListInput::totalFrames()
 {

@@ -243,18 +243,18 @@ namespace viva
                        int colorFlag = -1,
                        int loops = 1);
 
-        /**
-         * Overrided from Input Base Class. Used to extract a frame from the input sequence.
-         * Returns whether or not a frame was sucessfuly returned.
-         * @param frame: output image frame from the sequence
-         */
-        bool getFrame(Mat &frame);
-
 		/**
+         * Overrided from Input Base Class. Used to extract a frame from the input sequence.
 		* Returns whether or not a frame was sucessfuly returned.
 		* @param frame: output image frame from the sequence
-		* @param seek: get the image base on the seek index, seek=1(next frame), seek=0(current frame), seek=-1(previous frame) and so on ...
 		*/
+        bool getFrame(Mat &frame);
+
+        /**
+         * Returns whether or not a frame was sucessfuly returned.
+         * @param frame: output image frame from the sequence
+         * @param seek: get the image base on the seek index, seek=1(next frame), seek=0(current frame), seek=-1(previous frame) and so on ...
+         */
 		bool getFrame(Mat &frame, int seek);
 
 		/**
