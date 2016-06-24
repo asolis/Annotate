@@ -82,6 +82,7 @@ public:
     static bool isStringSequence(const string &sequence);
     static bool isFolderSequence(const string &sequence);
     static bool isCameraID(const string &s);
+    static bool filenames(const string &folder, vector<string> &filenames);
     static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
     static string  findInputGroundTruth(const string &sequence, const string &defaultname);
 };
@@ -117,7 +118,6 @@ protected:
     
     static int peopleAmount;
     
-    
     float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
     bool  acceptPolygon(const vector<Point2f> &polyg, int m);
     void  swapPolygon(int i);
@@ -141,7 +141,6 @@ protected:
 	
 
     Point2f centroid(const vector<Point2f> &corners);
-
 
     long currentFrameN;
 	int totalFrame;
@@ -361,66 +360,15 @@ public:
 
     virtual bool readActionTypeFile(const string &filename);
 
-    virtual void write(const string &filename,
-                       const float scaleX = 1.0f,
-                       const float scaleY = 1.0f) = 0;
+    virtual void write(const string &filename) = 0;
 
     virtual int read(const string &filename) = 0;
 };
 
-class CSVAnnotateProcess : public AnnotateProcess
-{
-public:
-
-
-    /*
-     * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
-     *                  a negative value will remove any ratio constraint.
-     *                  a positive value > 1 will make the height longer than the width
-     *                  a positive value between 0 and 1 will make the width longer than the height
-     *                  a value of 1 will make a square selection
-     */
-
-    CSVAnnotateProcess(float ratioYX = -1.f,
-                    int   method  = POLY,
-                    bool  track   =  true,
-                    bool  action  =  false,
-                    int totalFrameN = 0)
-        :AnnotateProcess(ratioYX, method, track, action, totalFrameN)
-    {}
-
-    static int parse(const string &filename, vector<vector<Annotation>> &annotation);
-    virtual int read(const string &filename);
-    virtual void write(const string &filename,
-                       const float scaleX = 1.0f,
-                       const float scaleY = 1.0f);
-
-};
 
 class XMLAnnotateProcess: public AnnotateProcess
 {
-    struct ATTR
-    {
-        static string VERSION;
-        static string ENCODING;
-        static string FRAMEC;
-        static string ID;
-        static string TARGETC;
-        static string ACTION;
-        static string TARGET1;
-        static string TARGET2;
-    };
-
-    struct NODE
-    {
-        static string SEQ;
-        static string FRAME;
-        static string TARGET;
-        static string LOCATION;
-        static string MATCHING;
-        static string MATCH;
-    };
-
+    
     /*
      * Convert string to the right encoding 
      */
@@ -455,6 +403,43 @@ class XMLAnnotateProcess: public AnnotateProcess
     static void parseLocation(const string &loc, vector<Point2f> &pts);
     
 public:
+    
+    struct ATTR
+    {
+        static string VERSION;
+        static string FILENAME;
+        static string TYPE;
+        static string ENCODING;
+        static string FRAMEC;
+        static string ID;
+        static string TARGETC;
+        static string ACTION;
+        static string TARGET1;
+        static string TARGET2;
+
+        
+        static string WIDTH;
+        static string HEIGHT;
+        
+        static string T_FOLDER;
+        static string T_FILE;
+    };
+    
+    struct NODE
+    {
+        static string SEQ;
+        static string FRAME;
+        static string TARGET;
+        static string LOCATION;
+        static string MATCHING;
+        static string MATCH;
+    };
+    
+    string input;
+    int width;
+    int height;
+    int ID;
+    
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
      *                  a negative value will remove any ratio constraint.
@@ -462,22 +447,35 @@ public:
      *                  a positive value between 0 and 1 will make the width longer than the height
      *                  a value of 1 will make a square selection
      */
-
-    XMLAnnotateProcess(float ratioYX = -1.f,
-                    int   method  = POLY,
-                    bool  track   =  true,
-                    bool  action  =  false,
+    
+    XMLAnnotateProcess(const string &_input,
+                       int inputWidth,
+                       int inputHeight,
+                       int sequenceID,
+                       float ratioYX = -1.f,
+                       int   method  =  AXIS_RECT,
+                       bool  track   =  true,
+                       bool  action  =  false,
                        int totalFrameN = 0)
-        : AnnotateProcess(ratioYX, method, track, action, totalFrameN)
+        : AnnotateProcess(ratioYX, method, track, action, totalFrameN),
+         input(_input), width(inputWidth), height(inputHeight), ID(sequenceID)
     {}
-
-    virtual void write(const string &filename,
-                       const float scaleX = 1.0f,
-                       const float scaleY = 1.0f);
     
-    static int parse(const string &filename,
+    virtual void write(const string &filename);
+    static  void writeHeader(xml_document<> &doc);
+    virtual void writeSequence(xml_document<> &doc);
+    
+    virtual int   read(const string &filename);
+    static size_t parse(const string &filename,
                      vector<vector<Annotation>> &annotation);
+    static size_t readSequence(xml_node<> &sequence,
+                               vector<vector<Annotation>> &ann,
+                               vector<string> &filenames,
+                               size_t &sequenceID,
+                               int &width,
+                               int &height);
     
-    virtual int read(const string &filename);
+    
+    
 };
 #endif

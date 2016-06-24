@@ -38,13 +38,64 @@
 
 using namespace viva;
 
+
+size_t read(CommandLineParserExt &parser,
+            vector<Ptr<Input>> &inputs,
+            vector<Ptr<XMLAnnotateProcess>> &processes)
+{
+    ifstream file(parser.get<string>("i"));
+    vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    
+    xml_document<> doc;
+    xml_node<>* sequence;
+    doc.parse<0>(&buffer[0]);
+    
+    size_t maxID = 0;
+    sequence = doc.first_node(XMLAnnotateProcess::NODE::SEQ.c_str());
+    for (xml_node<> * sequence = doc.first_node();
+                      sequence;
+                      sequence = sequence->next_sibling())
+    {
+        
+        int w, h;
+        size_t id;
+        vector<vector<Annotation>> ann;
+        vector<string> filenames;
+        size_t sMaxID = XMLAnnotateProcess::readSequence(*sequence, ann, filenames, id, w, h);
+        maxID = (sMaxID > maxID)? sMaxID : maxID;
+        
+    }
+    file.close();
+    return maxID;
+}
+
+
+void write(const string &filename,vector<Ptr<Input>> &inputs, vector<Ptr<XMLAnnotateProcess>> &processes)
+{
+    xml_document<> doc;
+    
+    XMLAnnotateProcess::writeHeader(doc);
+    
+    for (size_t i = 0; i < processes.size(); i++)
+    {
+        processes[i]->writeSequence(doc);
+    }
+    ofstream file;
+    file.open(filename);
+    file << doc;
+    file.close();
+}
+
+
+
 int main(int argc, const char * argv[])
 {
 
     const String keys =
         "{help h            |           | print this message}"
         "{@sequence         |           | list of url, file, folder, sequence}"
-        "{m method          |a          | choices =  p | r | a  (i.e., poly, rotated rect, axis aligned rect}"
+        "{m method          |a          | choices =  p | r | a  (i.e., poligon, rotated rect, axis aligned rect}"
         "{W width           |-1         | scale input using this width, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{H height          |-1         | scale input using this height, keeps aspect ratio annotations will be transformed to the initial image size}"
         "{r ratio           |-1         | ratio = height/width, -1 no constraints}"
@@ -52,8 +103,6 @@ int main(int argc, const char * argv[])
 		"{i import          |           | import xml file (only for image list input)}"
 		"{a actionType      |           | import actionType file}"
 		"{o output          |           | filename for annnotation results}"
-		"{f format          |xml        | choices = xml | csv }"
-
     ;
 
     CommandLineParserExt parser(argc, argv, keys);
@@ -71,14 +120,19 @@ int main(int argc, const char * argv[])
         method = AnnotateProcess::POLY;
     
 
-    /** enable tracking **/
-    bool tracking= parser.has("t");
 
     vector<Ptr<Input>> _inputs;
-	vector<int> _startFrame;
-    vector<Ptr<AnnotateProcess>> _process;
+    vector<Ptr<XMLAnnotateProcess>> _process;
     vector<Ptr<ProcessFrame>> proc;
 
+    
+    vector<int> _startFrame;
+    
+    size_t maxID = 0;
+    if (parser.has("i"))
+        maxID = read(parser, _inputs, _process);
+    
+    
     /** create the list of inputs and annotation process **/
     for (size_t i = 1; i <= parser.n_positional_args(); i++)
     {
@@ -87,28 +141,22 @@ int main(int argc, const char * argv[])
 
         _inputs.push_back(input);
 
-        Ptr<AnnotateProcess> process;
-        if (parser.get<string>("f") == "xml")
-        {
-            process = new XMLAnnotateProcess(parser.get<float>("r"),
-                                             method, tracking, parser.has("a"),
-                                             input->totalFrames());
-        }
-        else
-        {
-            process = new CSVAnnotateProcess(parser.get<float>("r"),
-                                             method, tracking, parser.has("a"),
-                                             input->totalFrames());
-        }
+        Ptr<XMLAnnotateProcess> process;
 
-        int latestFrame = 0;
-        if (parser.has("i"))
-            process->read(parser.get<string>("i"));
-		_startFrame.push_back(latestFrame);
+        process = new XMLAnnotateProcess(parser.get<string>(i),
+                                         input->getWidth(),
+                                         input->getHeight(),
+                                         i - 1,
+                                         parser.get<float>("r"),
+                                         method,
+                                         parser.has("t"),
+                                         parser.has("a"),
+                                         input->totalFrames());
 
         if (parser.has("a"))
             process->readActionTypeFile(parser.get<string>("a"));
 
+        _startFrame.push_back(0);
         _process.push_back(process);
         proc.push_back(process);
     }
@@ -123,21 +171,12 @@ int main(int argc, const char * argv[])
     processor.run();
 
     if (parser.has("o"))
-    {
-        for (size_t i = 0; i < parser.n_positional_args(); i++)
-        {
-            Ptr<Input> input = _inputs[i];
-            Size org = input->getOrgSize();
-            Size cur = Size(input->getWidth(), input->getHeight());
-
-            Ptr<AnnotateProcess> process = _process[i];
-            string annotations = parser.get<string>("o");
-            process->write(annotations,
-                                  (float)org.width/(float)cur.width,
-                                  (float)org.height/(float)cur.height);
-        }
-    }
+        write(parser.get<string>("o"), _inputs, _process);
 
 
     return 0;
 }
+
+
+
+
