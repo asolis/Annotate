@@ -52,17 +52,17 @@ size_t read(CommandLineParserExt &parser,
     doc.parse<0>(&buffer[0]);
     
     size_t maxID = 0;
-    sequence = doc.first_node(XMLAnnotateProcess::NODE::SEQ.c_str());
+    sequence = doc.first_node(NODE::SEQ.c_str());
     for (xml_node<> * sequence = doc.first_node();
                       sequence;
                       sequence = sequence->next_sibling())
     {
         
-        int w, h;
-        size_t id;
-        vector<vector<Annotation>> ann;
-        vector<string> filenames;
-        size_t sMaxID = XMLAnnotateProcess::readSequence(*sequence, ann, filenames, id, w, h);
+//        int w, h;
+//        size_t id;
+//        vector<vector<Annotation>> ann;
+//        vector<string> filenames;
+        size_t sMaxID = 9;//XMLAnnotateProcess::readSequence(*sequence, ann, filenames, id, w, h);
         maxID = (sMaxID > maxID)? sMaxID : maxID;
         
     }
@@ -71,11 +71,14 @@ size_t read(CommandLineParserExt &parser,
 }
 
 
-void write(const string &filename,vector<Ptr<Input>> &inputs, vector<Ptr<XMLAnnotateProcess>> &processes)
+void write(const string &filename,
+           vector<string> &actions,
+           vector<Ptr<XMLAnnotateProcess>> &processes)
 {
     xml_document<> doc;
     
     XMLAnnotateProcess::writeHeader(doc);
+    XMLAnnotateProcess::writeActions(doc, actions);
     
     for (size_t i = 0; i < processes.size(); i++)
     {
@@ -126,18 +129,27 @@ int main(int argc, const char * argv[])
     vector<Ptr<ProcessFrame>> proc;
 
     
-    vector<int> _startFrame;
-    
+    size_t _startFrame  = 0;
     size_t maxID = 0;
+
+
+    vector<string> actions;
+    if (parser.has("a"))
+        AnnotateProcess::readActionTypeFile(parser.get<string>("a"),
+                                            actions);
+
     if (parser.has("i"))
         maxID = read(parser, _inputs, _process);
-    
+
+
+
     
     /** create the list of inputs and annotation process **/
     for (size_t i = 1; i <= parser.n_positional_args(); i++)
     {
         Ptr<Input> input = InputFactory::create(parser.get<string>(i),
-                                Size(parser.get<int>("W"), parser.get<int>("H")));
+                                Size(parser.get<int>("W"),
+                                     parser.get<int>("H")));
 
         _inputs.push_back(input);
 
@@ -153,10 +165,7 @@ int main(int argc, const char * argv[])
                                          parser.has("a"),
                                          input->totalFrames());
 
-        if (parser.has("a"))
-            process->readActionTypeFile(parser.get<string>("a"));
 
-        _startFrame.push_back(0);
         _process.push_back(process);
         proc.push_back(process);
     }
@@ -171,7 +180,7 @@ int main(int argc, const char * argv[])
     processor.run();
 
     if (parser.has("o"))
-        write(parser.get<string>("o"), _inputs, _process);
+        write(parser.get<string>("o"), actions, _process);
 
 
     return 0;

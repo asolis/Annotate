@@ -45,7 +45,7 @@ const Scalar Color::teal = Scalar(255, 255, 0);
 const Scalar Color::orange = Scalar(22,134,241);
 
 
-int AnnotateProcess::peopleAmount = 0;
+int AnnotateProcess::currentAnnotationID = 0;
 
 bool InputFactory::filenames(const string &folder, vector<string> &filenames)
 {
@@ -153,7 +153,7 @@ string  InputFactory::findInputGroundTruth(const string &sequence, const string 
 }
 
 
-float AnnotateProcess::closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
+float Geometry::closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
 {
     float A = pt.x - s.x;
     float B = pt.y - s.y;
@@ -167,25 +167,28 @@ float AnnotateProcess::closestPointToRay(const Point2f &pt, const Point2f &s, co
 bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 {
     return  (m == AXIS_RECT && polyg.size() >= 2) ||
-    (m == ROTA_RECT && polyg.size() >= 4) ||
-    (m == POLY && polyg.size() >= 3);
+            (m == ROTA_RECT && polyg.size() >= 4) ||
+            (m == POLY && polyg.size() >= 3);
 }
 void AnnotateProcess::swapPolygon(int i)
 {
-	swap(drawing, annotations[currentFrameN][i].area);
-	swap(mode, annotations[currentFrameN][i].mode);
-	swap(currentActionType, annotations[currentFrameN][i].actionType);
+    swap(draw.area, annotations[currentFrameN][i].area);
+    swap(draw.mode, annotations[currentFrameN][i].mode);
+    swap(draw.action, annotations[currentFrameN][i].action);
+//	swap(drawing, annotations[currentFrameN][i].area);
+//	swap(mode, annotations[currentFrameN][i].mode);
+//	swap(currentAction, annotations[currentFrameN][i].action);
 }
-bool AnnotateProcess::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
+bool Geometry::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
 {
     return polygon.size() > 0 && pointPolygonTest(polygon, pt, false) > 0;
 }
-int AnnotateProcess::findIndexOfPolygonContainingPt(const Point2f &pt)
+int AnnotateProcess::findAnnotationIndexContaining(const Point2f &pt)
 {
     int found = -1;
     for ( size_t i = 0; i < annotations[currentFrameN].size(); i++)
     {
-        if (ptInsidePolygon(pt, annotations[currentFrameN][i].area))
+        if (Geometry::ptInsidePolygon(pt, annotations[currentFrameN][i].area))
             return i;
     }
     return found;
@@ -198,7 +201,7 @@ Ptr<SKCFDCF> AnnotateProcess::initTracker(Mat frame, Rect area)
 	tmp->initialize(frame, area);
 	return tmp;
 }
-Point2f AnnotateProcess::vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
+Point2f Geometry::vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
 {
     Point2f tmp = e - s;
     return Point2f( -tmp.y, tmp.x);
@@ -238,7 +241,7 @@ void Draw::displayAnnotation(cv::Mat &image,
 {
     displayPolygon(image, ann.area, background, thickness, close);
     string info = ((ann.tracking)?"[T] ":"") + to_string(ann.ID) +
-                  ": " + ann.actionType;
+                  ": " + ann.action;
     
     displayPolygonInfo(image, info, ann.area, background, foreground);
 
@@ -258,18 +261,12 @@ void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &
              color, thickness, CV_AA );
 }
 
-void AnnotateProcess::getRRect(const Point2f &mPos, float ratio,
-              Point2f &p1,
-              Point2f &p2,
-              Point2f &p3,
-              Point2f &p4)
+void Geometry::getRRect(const Point2f &mPos, float ratio,
+              Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4)
 {
-    Point2f vec = vectorPerpendicularToSegment( p1,
-                                               p2);
+    Point2f vec = Geometry::vectorPerpendicularToSegment(p1, p2);
 
-    float t = closestPointToRay(mPos,
-                                p2,
-                                p2 + vec);
+    float t = Geometry::closestPointToRay(mPos, p2, p2 + vec);
     p3 = p2 + t * vec;
 
     if (ratio > 0)
@@ -283,20 +280,15 @@ void AnnotateProcess::getRRect(const Point2f &mPos, float ratio,
 
     p4 = p1 + t * vec;
 }
-void AnnotateProcess::getARect(const Point2f &mPos, float ratio,
-              Point2f &p1,
-              Point2f &p2,
-              Point2f &p3,
-              Point2f &p4)
+void Geometry::getARect(const Point2f &mPos, float ratio,
+              Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4)
 {
     Point2f p = mPos;
 
     if (ratio > 0)
     {
         Point2f vec(1.0f, ratio);
-        float t = closestPointToRay(mPos,
-                                    p1,
-                                    p1 + vec);
+        float t = Geometry::closestPointToRay(mPos, p1, p1 + vec);
         p =  p1 + t * vec;
     }
 
@@ -310,6 +302,7 @@ void AnnotateProcess::getARect(const Point2f &mPos, float ratio,
     p3 = area.br();
     p4 = area.tl() + Point(0, area.height);
 }
+
 void AnnotateProcess::helpHUD(Mat &image)
 {
     std::stringstream ss;
@@ -319,18 +312,21 @@ void AnnotateProcess::helpHUD(Mat &image)
     int fsize  = 20;
     int characterWidth  = 15;
 
-    if (mode == AXIS_RECT)
+    if (draw.mode == AXIS_RECT)
         ss << "Axis Align Rectangle ";
-    else if (mode == ROTA_RECT)
+    else if (draw.mode == ROTA_RECT)
         ss << "Rotated Rectangle ";
     else
         ss << "Polygon ";
 
-    if (ratio > 0 && mode != POLY)
+    if (ratio > 0 && draw.mode != POLY)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
-	help.push_back(" Frame Number : " + std::to_string(currentFrameN) + "/" + std::to_string(totalFrame-1));
+	help.push_back(" Frame Number : " +
+                   std::to_string(currentFrameN) + "/" +
+                   std::to_string(totalNumberOfFrames - 1));
+
 	help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (h) : Toggle this help ");
@@ -361,7 +357,7 @@ void AnnotateProcess::helpHUD(Mat &image)
                 FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
     }
     
-    if (actionAnnotating)
+    if (annotatingActions)
     {
         vector<string> actionList;
         actionList.push_back("");
@@ -369,8 +365,8 @@ void AnnotateProcess::helpHUD(Mat &image)
         
         int header = actionList.size();
         
-        for (size_t i = 0; i < actionType.size(); i++)
-            actionList.push_back(" (" + std::to_string(i) + ") : " + actionType.at(i));
+        for (size_t i = 0; i < actions.size(); i++)
+            actionList.push_back(" (" + std::to_string(i) + ") : " + actions.at(i));
         
         int leftMargin = (characterWidth * fsize + margin * 2);
         
@@ -381,7 +377,7 @@ void AnnotateProcess::helpHUD(Mat &image)
                 putText(image, actionList[i], Point(leftMargin, h),
                         FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
             }
-            else if (currentActionType == actionType.at(i-header))
+            else if (draw.action == actions.at(i-header))
             {
                 putText(image, actionList[i], Point(leftMargin, h),
                         FONT_HERSHEY_SIMPLEX, .5, Color::red, 1, CV_AA);
@@ -395,7 +391,7 @@ void AnnotateProcess::helpHUD(Mat &image)
     }
 }
 
-Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
+Point2f Geometry::centroid(const vector<Point2f> &corners)
 {
     Moments mu = moments(corners);
     return Point2f(mu.m10/mu.m00, mu.m01/mu.m00);
@@ -403,69 +399,76 @@ Point2f AnnotateProcess::centroid(const vector<Point2f> &corners)
 
 void AnnotateProcess::leftButtonDown(int x, int y, int flags)
 {
-    if  (flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY)
+    if  (flags &  EVENT_FLAG_CTRLKEY  ||
+         flags &  EVENT_FLAG_SHIFTKEY)
     {
-        mouseShift = Point2f(x,y);
-        selection = findIndexOfPolygonContainingPt(mouseShift);
+
+        selection = findAnnotationIndexContaining(Point2f(x,y));
         if (selection >= 0)
         {
-            drawing.clear();
+            mouseShift = Geometry::centroid(annotations[currentFrameN][selection].area);
+            draw.area.clear();
             swapPolygon(selection);
         }
 
     }
     else
     {
-        if (mode == AXIS_RECT && drawing.size() == 1)
+        if (draw.mode == AXIS_RECT && draw.area.size() == 1)
         {
             vector<Point2f> _aRect(4);
-            _aRect[0] = drawing.front();
-            getARect(mousePos, ratio, _aRect[0], _aRect[1], _aRect[2], _aRect[3]);
-            drawing.pop_back();
-            drawing.push_back(_aRect[0]);
-            drawing.push_back(_aRect[1]);
-            drawing.push_back(_aRect[2]);
-            drawing.push_back(_aRect[3]);
+            _aRect[0] = draw.area.front();
+            Geometry::getARect(mousePos, ratio,
+                               _aRect[0], _aRect[1],
+                               _aRect[2], _aRect[3]);
+            draw.area.pop_back();
+            draw.area.push_back(_aRect[0]);
+            draw.area.push_back(_aRect[1]);
+            draw.area.push_back(_aRect[2]);
+            draw.area.push_back(_aRect[3]);
 
         }
-        else if (mode == AXIS_RECT && drawing.size() >= 2)
+        else if (draw.mode == AXIS_RECT && draw.area.size() >= 2)
         {
             newAnnotation();
-            drawing.push_back(Point2f(x,y));
+            draw.area.push_back(Point2f(x,y));
         }
-        else if (mode == ROTA_RECT && drawing.size() >= 4)
+        else if (draw.mode == ROTA_RECT && draw.area.size() >= 4)
         {
             newAnnotation();
-            drawing.push_back(Point2f(x,y));
+            draw.area.push_back(Point2f(x,y));
         }
-        else if (mode == ROTA_RECT && drawing.size() == 2)
+        else if (draw.mode == ROTA_RECT && draw.area.size() == 2)
         {
             Point2f p3, p4;
-            getRRect(mousePos, ratio, drawing.back(), drawing.front(), p3, p4);
-            drawing.push_back(p4);
-            drawing.push_back(p3);
+            Geometry::getRRect(mousePos, ratio,
+                               draw.area.back(), draw.area.front(),
+                               p3, p4);
+            draw.area.push_back(p4);
+            draw.area.push_back(p3);
         }
-        else if (mode == ROTA_RECT && drawing.size() == 1)
+        else if (draw.mode == ROTA_RECT && draw.area.size() == 1)
         {
-            drawing.push_back(Point2f(x,y));
+            draw.area.push_back(Point2f(x,y));
         }
         else
         {
-            drawing.push_back(Point2f(x,y));
+            draw.area.push_back(Point2f(x,y));
         }
 
-        mouseShift = centroid(drawing);
+        mouseShift = Geometry::centroid(draw.area);
     }
 };
 
 void AnnotateProcess::mouseMove(int x, int y, int flags)
 {
-    if  ((flags &  EVENT_FLAG_CTRLKEY  || flags & EVENT_FLAG_SHIFTKEY) &&
-         ptInsidePolygon(Point2f(x,y), drawing))
+    if  ( (flags &  EVENT_FLAG_CTRLKEY ||
+           flags &  EVENT_FLAG_SHIFTKEY)  &&
+         Geometry::ptInsidePolygon(Point2f(x,y), draw.area))
     {
         Point2f vector =  Point2f(x,y) - mouseShift;
-        for(size_t i = 0; i < drawing.size(); i++ )
-            drawing[i]+= vector;
+        for(size_t i = 0; i < draw.area.size(); i++ )
+            draw.area[i]+= vector;
 
         mouseShift = mouseShift + vector;
     }
@@ -476,7 +479,7 @@ void AnnotateProcess::keyboardInput(int key)
 {
     if (key == 'b' || key == 'B')
     {
-        if (drawing.empty())
+        if (draw.area.empty())
         {
 			selection = -1;
 			if (!annotations[currentFrameN].empty())
@@ -504,24 +507,24 @@ void AnnotateProcess::keyboardInput(int key)
 
 			}
         }
-        if (mode == AXIS_RECT && drawing.size() == 4)
+        if (draw.mode == AXIS_RECT && draw.area.size() == 4)
         {
-            drawing.pop_back();
-            drawing.pop_back();
+            draw.area.pop_back();
+            draw.area.pop_back();
         }
-        if (mode == ROTA_RECT && drawing.size() == 4)
+        if (draw.mode == ROTA_RECT && draw.area.size() == 4)
         {
-            drawing.pop_back();
+            draw.area.pop_back();
         }
-        if (!drawing.empty())
+        if (!draw.area.empty())
         {
-            drawing.pop_back();
+            draw.area.pop_back();
         }
 
     }
     if (key == 'c' || key == 'C')
     {
-        drawing.clear();
+        draw.area.clear();
 
         while (!annotations[currentFrameN].empty())
             annotations[currentFrameN].pop_back();
@@ -546,7 +549,7 @@ void AnnotateProcess::keyboardInput(int key)
     if (key == 'm' || key == 'M')
     {
         newAnnotation();
-        mode = (++mode)%3;
+        draw.mode = (++draw.mode)%3;
     }
     if (key == '-')
     {
@@ -557,10 +560,10 @@ void AnnotateProcess::keyboardInput(int key)
         ratio += .1;
     }
 
-    for (int i = 0; i < actionType.size(); i++)
+    for (int i = 0; i < actions.size(); i++)
     {
         if (key == ('0' + i))
-            currentActionType = actionType.at(i);
+            draw.action = actions.at(i);
     }
 };
 
@@ -570,42 +573,42 @@ void AnnotateProcess::remAnnotation()
     {
         annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
     }
-    drawing.clear();
+    draw.area.clear();
     selection = -1;
 }
-bool AnnotateProcess::annotationIsSelected()
+bool AnnotateProcess::isAnnotationSelected()
 {
     return (selection >= 0 && selection < annotations[currentFrameN].size());
 }
 
 void AnnotateProcess::newAnnotation()
 {
-    if (acceptPolygon(drawing, mode))
+    if (acceptPolygon(draw.area, draw.mode))
     {
         Annotation tmp;
 		//Rect area = boundingRect(drawing);
         if (selection < 0)
         {
-            tmp.area = drawing;
-            tmp.mode = mode;
-            tmp.actionType = currentActionType;
-            tmp.ID = peopleAmount++;
+            tmp.area = draw.area;
+            tmp.mode = draw.mode;
+            tmp.action = draw.action;
+            tmp.ID = AnnotateProcess::currentAnnotationID++;
             tmp.tracking = true;
             annotations[currentFrameN].push_back(tmp);
         }
         else if (selection >= 0 && selection < annotations[currentFrameN].size() )
         {
-            annotations[currentFrameN][selection].area = drawing;
-            annotations[currentFrameN][selection].mode = mode;
-            annotations[currentFrameN][selection].actionType = currentActionType;
+            annotations[currentFrameN][selection].area = draw.area;
+            annotations[currentFrameN][selection].mode = draw.mode;
+            annotations[currentFrameN][selection].action = draw.action;
 			//annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
         }
-        drawing.clear();
+        draw.area.clear();
         selection = -1;
     }
 }
 
-bool AnnotateProcess::readActionTypeFile(const string &filename)
+bool AnnotateProcess::readActionTypeFile(const string &filename, vector<string> &actions)
 {
     string line;
     ifstream myfile(filename);
@@ -613,45 +616,44 @@ bool AnnotateProcess::readActionTypeFile(const string &filename)
     {
         while (getline(myfile, line))
         {
-            actionType.push_back(line);
-        }
-        if (actionType.size() != 0)
-        {
-            currentActionType = actionType.at(0);
+            actions.push_back(line);
         }
         myfile.close();
         return true;
     }
     else
     {
-        cout << "Unable to open file";
+        cout << "Unable to open file: " + filename << endl;
         return false;
     }
 }
 
 
-string XMLAnnotateProcess::ATTR::VERSION  = "version";
-string XMLAnnotateProcess::ATTR::FILENAME = "filename";
-string XMLAnnotateProcess::ATTR::TYPE     = "type";
-string XMLAnnotateProcess::ATTR::ENCODING = "encoding";
-string XMLAnnotateProcess::ATTR::FRAMEC   = "frameCount";
-string XMLAnnotateProcess::ATTR::ID       = "id";
-string XMLAnnotateProcess::ATTR::TARGETC  = "targetCount";
-string XMLAnnotateProcess::ATTR::ACTION   = "action";
-string XMLAnnotateProcess::ATTR::TARGET1  = "target1";
-string XMLAnnotateProcess::ATTR::TARGET2  = "target2";
-string XMLAnnotateProcess::ATTR::WIDTH    = "width";
-string XMLAnnotateProcess::ATTR::HEIGHT   = "height";
 
-string XMLAnnotateProcess::ATTR::T_FOLDER = "folder";
-string XMLAnnotateProcess::ATTR::T_FILE   = "file";
+string ATTR::VERSION  = "version";
+string ATTR::FILENAME = "filename";
+string ATTR::TYPE     = "type";
+string ATTR::ENCODING = "encoding";
+string ATTR::FRAMEC   = "frameCount";
+string ATTR::ID       = "id";
+string ATTR::TARGETC  = "targetCount";
+string ATTR::ACTION   = "action";
+string ATTR::TARGET1  = "target1";
+string ATTR::TARGET2  = "target2";
+string ATTR::WIDTH    = "width";
+string ATTR::HEIGHT   = "height";
 
-string XMLAnnotateProcess::NODE::SEQ      = "sequence";
-string XMLAnnotateProcess::NODE::FRAME    = "frame";
-string XMLAnnotateProcess::NODE::TARGET   = "target";
-string XMLAnnotateProcess::NODE::LOCATION = "location";
-string XMLAnnotateProcess::NODE::MATCHING = "matching";
-string XMLAnnotateProcess::NODE::MATCH    = "match";
+string ATTR::T_FOLDER = "folder";
+string ATTR::T_FILE   = "file";
+
+string NODE::SEQ      = "sequence";
+string NODE::ACTIONS  = "actions";
+string NODE::ACTION   = "action";
+string NODE::FRAME    = "frame";
+string NODE::TARGET   = "target";
+string NODE::LOCATION = "location";
+string NODE::MATCHING = "matching";
+string NODE::MATCH    = "match";
 
 
 void XMLAnnotateProcess::writeHeader(xml_document<> &doc)
@@ -661,6 +663,17 @@ void XMLAnnotateProcess::writeHeader(xml_document<> &doc)
     decl->append_attribute(attribute(doc, ATTR::VERSION, "1.0"));
     decl->append_attribute(attribute(doc, ATTR::ENCODING, "utf-8"));
     doc.append_node(decl);
+}
+void XMLAnnotateProcess::writeActions(xml_document<> &doc, const vector<string> &acts)
+{
+    xml_node<>* actions = node(doc, NODE::ACTIONS);
+    for (size_t i = 0; i < acts.size(); i++)
+    {
+        xml_node<> *action = node(doc, NODE::ACTION);
+        action->value(toChar(doc, acts[i]));
+        actions->append_node(action);
+    }
+    doc.append_node(actions);
 }
 void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
 {
@@ -699,7 +712,7 @@ void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
             xml_node<> *target = node(doc, NODE::TARGET);
             
             target->append_attribute(attribute(doc, ATTR::ID, to_string(annotations[i][j].ID)));
-            target->append_attribute(attribute(doc, ATTR::ACTION, annotations[i][j].actionType));
+            target->append_attribute(attribute(doc, ATTR::ACTION, annotations[i][j].action));
             
             xml_node<> *loc   = node(doc, NODE::LOCATION);
             
@@ -725,6 +738,7 @@ void XMLAnnotateProcess::write(const string &filename)
     xml_document<> doc;
     // add declaration
     writeHeader(doc);
+    writeActions(doc, actions);
     writeSequence(doc);
     ofstream file;
     file.open(filename);
@@ -770,33 +784,42 @@ void XMLAnnotateProcess::write(const string &filename)
 }
 
 
-size_t XMLAnnotateProcess::readSequence(xml_node<> &sequence,
-                                        vector<vector<Annotation>> &ann,
-                                        vector<string> &filenames,
-                                        size_t &sequenceID,
-                                        int &width,
-                                        int &height)
+
+void XMLAnnotateProcess::readSequenceMetadata(xml_node<>&sequence,
+                                              size_t &sequenceID,
+                                              size_t &frameCount,
+                                              string &type,
+                                              int &width,
+                                              int &height)
 {
-   
-    size_t sFC = readAttribute<size_t>(sequence, ATTR::FRAMEC);
-    string fT  = readAttribute<string>(sequence, ATTR::TYPE);
+    frameCount = readAttribute<size_t>(sequence, ATTR::FRAMEC);
+    type       = readAttribute<string>(sequence, ATTR::TYPE);
     sequenceID = readAttribute<size_t>(sequence, ATTR::ID);
     width      = readAttribute<float>(sequence, ATTR::WIDTH);
     height     = readAttribute<float>(sequence, ATTR::HEIGHT);
-    
-    ann.resize(sFC);
-    filenames.resize(sFC);
-    
+}
+
+void XMLAnnotateProcess::readSequenceFilenames(xml_node<> &sequence,
+                                               vector<string> &filenames)
+{
+    for (xml_node<> *frame = sequence.first_node(NODE::FRAME.c_str());
+                     frame;
+                     frame = frame->next_sibling())
+    {
+        filenames.push_back(readAttribute<string>(*frame, ATTR::FILENAME));
+    }
+}
+
+size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
+                                    vector<vector<Annotation>> &ann)
+{
     size_t maxID = 0;
-    
     for (xml_node<> *frame = sequence.first_node(NODE::FRAME.c_str());
          frame;
          frame = frame->next_sibling())
     {
-        size_t fID = readAttribute<size_t>(*frame, ATTR::ID);
-        if (fT == ATTR::T_FOLDER)
-            filenames[fID] = (readAttribute<string>(*frame, ATTR::FILENAME));
-        
+        size_t fN = readAttribute<size_t>(*frame, ATTR::ID);
+
         for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
             target;
             target = target->next_sibling())
@@ -804,24 +827,23 @@ size_t XMLAnnotateProcess::readSequence(xml_node<> &sequence,
             size_t tID        = readAttribute<size_t>(*target, ATTR::ID);
             string tAction    = readAttribute<string>(*target, ATTR::ACTION);
             xml_node<char> *loc = target->first_node(NODE::LOCATION.c_str());
-            
+
             maxID = (tID > maxID)? tID : maxID;
-            
+
             if (loc)
             {
                 string location(loc->value());
                 Annotation a;
                 a.tracking = false;
                 a.ID = tID;
-                a.actionType = tAction;
+                a.action = tAction;
                 parseLocation(location, a.area);
-                ann[fID].push_back(a);
+                ann[fN].push_back(a);
             }
         }
     }
     return maxID;
 }
-
 
 size_t XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
 {
@@ -830,22 +852,16 @@ size_t XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotatio
     vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
     buffer.push_back('\0');
     ann.clear();
-    
-    
     xml_document<> doc;
     xml_node<>* sequence;
     doc.parse<0>(&buffer[0]);
-    
     sequence = doc.first_node(NODE::SEQ.c_str());
-    
-    vector<string> filenames;
-    size_t camera;
-    int sX, sY;
-    return readSequence(*sequence, ann, filenames, camera, sX, sY);
+
+    return readSequenceAnnotations(*sequence, ann);
 }
 
-int XMLAnnotateProcess::read(const string &filename)
+size_t XMLAnnotateProcess::read(const string &filename, int sequenceID)
 {
-    drawing.clear();
+    draw.area.clear();
     return parse(filename, annotations);
 }

@@ -192,7 +192,7 @@ class MultipleProcess
 {
 private:
     vector<Ptr<Input>>  _input;
-	vector<int>			_startFrame;
+	size_t  			_startFrame;
     vector<Ptr<ProcessFrame>> _process;
     vector<Ptr<Output>>  _output;
     string _windowName;
@@ -263,7 +263,7 @@ public:
     {
         _input = input;
     }
-	void setStartFrame(vector<int> &startFrame)
+	void setStartFrame(size_t startFrame)
 	{
 		_startFrame = startFrame;
 	}

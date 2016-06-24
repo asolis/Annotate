@@ -240,12 +240,12 @@ void MultipleProcess::run()
     for (size_t i = 0; i < _input.size(); i++)
     {
         Mat tmp;
-        bool _retrieved = _input[i]->getFrame(tmp, _startFrame[i]);
+        bool _retrieved = _input[i]->getFrame(tmp, _startFrame);
         allSequencesReady = allSequencesReady && _retrieved;
         freezedFrames.push_back(tmp);
         hasFrame.push_back(_retrieved);
 		long frame = 0;
-		frame += _startFrame[i];
+		frame += _startFrame;
 		frameN.push_back(frame);
     }
 

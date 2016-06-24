@@ -68,7 +68,7 @@ struct Annotation
     int ID;
     bool tracking;
     int mode;
-    string actionType;
+    string action;
     vector<Point2f> area;
     
 };
@@ -110,54 +110,75 @@ public:
                                    const Scalar &foreground = Color::red);
 };
 
+class Geometry
+{
+public:
+    /*
+     * Centroid of a list of points
+     */
+    static Point2f centroid(const vector<Point2f> &corners);
+
+    /*
+     * Get axis align rectangle defined by point and ratio
+     */
+    static void getARect(const Point2f &mPos, float ratio,
+                  Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4);
+    /*
+     * Get rotated rectangle defined by vector and ratio
+     */
+    static void getRRect(const Point2f &mPos, float ratio,
+                  Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4);
+
+    /*
+     * Closest point to a Ray
+     */
+    static float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
+
+    /*
+     * Point inside polygon
+     */
+    static bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
+
+    /*
+     * vector perpendicular to segment (s,e)
+     */
+    static Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
+};
 
 
 class AnnotateProcess : public ProcessFrame
 {
 protected:
-    
-    static int peopleAmount;
-    
-    float closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e);
     bool  acceptPolygon(const vector<Point2f> &polyg, int m);
+    bool  isAnnotationSelected();
+    int   findAnnotationIndexContaining(const Point2f &pt);
     void  swapPolygon(int i);
-    bool  annotationIsSelected();
-    bool  ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon);
-    int   findIndexOfPolygonContainingPt(const Point2f &pt);
-	Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
-    Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
 
-    void getRRect(const Point2f &mPos, float ratio,
-                          Point2f &p1,
-                          Point2f &p2,
-                          Point2f &p3,
-                  Point2f &p4);
-    void getARect(const Point2f &mPos, float ratio,
-                          Point2f &p1,
-                          Point2f &p2,
-                          Point2f &p3,
-                  Point2f &p4);
+
+    Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
     void helpHUD(Mat &image);
-	
 
-    Point2f centroid(const vector<Point2f> &corners);
 
+
+    Mat currentFrame;
     long currentFrameN;
-	int totalFrame;
+	int  totalNumberOfFrames;
+
     Point2f mousePos;
     Point2f mouseShift;
+
     int thickness;
-    int mode;
+
     int selection;
-	string currentActionType;
     float ratio;
     bool showHelp;
     bool tracking;
-	bool actionAnnotating;
+	bool annotatingActions;
 	bool initialized;
 
 
 public:
+    static int currentAnnotationID;
 
     enum
     {
@@ -166,12 +187,14 @@ public:
         POLY
     };
 
+
 	vector<vector<Annotation>> annotations;
-	vector<std::string> actionType;
+	vector<std::string> actions;
+    //vector<Point2f> drawing;
 
-    vector<Point2f> drawing;
+    Annotation draw;
 
-    Mat currentFrame;
+
 
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
@@ -186,31 +209,70 @@ public:
                     bool  track   =  true,
 					bool  action  =  false,
 					int totalFrameN = 0):
+                      currentFrame(),
                       currentFrameN(-1),
-                      totalFrame(totalFrameN),
+                      totalNumberOfFrames(totalFrameN),
                       mousePos(-1,-1),
                       mouseShift(-1,-1),
                       thickness(2),
-                      mode(method),
                       selection(-1),
-                      currentActionType(""),
                       ratio(ratioYX),
                       showHelp(true),
                       tracking(track),
-		              actionAnnotating(action),
+		              annotatingActions(action),
                       initialized(false),
                       annotations(totalFrameN),
-                      drawing(),
-                      currentFrame()
-    {}
+                      draw()
 
+    {
+        draw.mode = method;
+        draw.action = "";
+    }
+
+    void setAnnotationAspectRation(float ratioYX)
+    {
+        ratio = ratioYX;
+    }
+
+    void setAnnotationMode(int m)
+    {
+        draw.mode = m;
+    }
+
+    void enableTracking(bool flag = true)
+    {
+        tracking = flag;
+    }
+
+    void setActions(vector<string> &actns)
+    {
+        actions = actns;
+        if (actions.size() != 0)
+        {
+            draw.action = actions[0];
+            annotatingActions = true;
+        }
+    }
+    void setNumberOfFrames(int frameCount)
+    {
+        totalNumberOfFrames = frameCount;
+        annotations.clear();
+        annotations.resize(frameCount);
+    }
+
+    void setAnnotations(vector<vector<Annotation>> &ann)
+    {
+        annotations = ann;
+        totalNumberOfFrames = ann.size();
+    }
 
 	virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
 	{
     
         if (tracking && ( frameN == (currentFrameN + 1) ))
         {
-            for (size_t i = 0; i < annotations[currentFrameN].size(); i++)
+            for (size_t i = 0; (currentFrameN < annotations.size()) &&
+                               (i < annotations[currentFrameN].size()); i++)
             {
                 Annotation &previous = annotations[currentFrameN][i];
                 if (previous.tracking)
@@ -220,8 +282,8 @@ public:
                     Annotation newAnnotation;
                     newAnnotation.ID = previous.ID;
                     newAnnotation.tracking = true;
-                    newAnnotation.mode = mode;
-                    newAnnotation.actionType = currentActionType;
+                    newAnnotation.mode   = draw.mode;
+                    newAnnotation.action = draw.action;
                     
                     Rect area = boundingRect(previous.area);
                     
@@ -249,40 +311,46 @@ public:
 
 
 		// display the existed annotation
-		for (int i = 0; i < annotations[currentFrameN].size(); i++)
+		for (int i = 0; (i < annotations[currentFrameN].size()) &&
+                        (currentFrameN < annotations.size()); i++)
 		{
             Draw::displayAnnotation(output, annotations[currentFrameN][i],
                                     Color::yellow, Color::red, thickness, true);
 		}
 
-		// display the current drawing
-		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
-        
-        string currentID = (annotationIsSelected())?
-            to_string(annotations[currentFrameN][selection].ID) :
-            to_string(peopleAmount);
-        
-        string info =  currentID + ": " + currentActionType;
-        Draw::displayPolygonInfo(output, info, drawing, Color::red, Color::yellow);
-        
-		if (mode == POLY)
+
+        Draw::displayAnnotation(output, draw,
+                                Color::red,
+                                Color::yellow, thickness, draw.mode != POLY);
+
+//		// display the current drawing
+//		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
+//        
+//        string currentID = (isAnnotationSelected())?
+//            to_string(annotations[currentFrameN][selection].ID) :
+//            to_string(currentAnnotationID);
+//        
+//        string info =  currentID + ": " + currentAction;
+//        Draw::displayPolygonInfo(output, info, drawing, Color::red, Color::yellow);
+
+		if (draw.mode == POLY)
 		{
-			if (drawing.size() > 0)
+			if (draw.area.size() > 0)
 			{
-				line(output, drawing.back(), mousePos,
+				line(output, draw.area.back(), mousePos,
 					Color::blue, thickness - 1, CV_AA);
-				line(output, mousePos, drawing.front(),
+				line(output, mousePos, draw.area.front(),
 					Color::red, thickness - 1, CV_AA);
 			}
 		}
 
-		if (mode == ROTA_RECT)
+		if (draw.mode == ROTA_RECT)
 		{
-			int pts = drawing.size();
+			int pts = draw.area.size();
 
 			if (pts == 1)
 			{
-				line(output, drawing.front(), mousePos,
+				line(output, draw.area.front(), mousePos,
 					Color::blue, thickness - 1, CV_AA);
 			}
 			else if (pts == 2)
@@ -290,9 +358,9 @@ public:
 
 
 				vector<Point2f> _rRect(4);
-				_rRect[0] = drawing.back();
-				_rRect[1] = drawing.front();
-				getRRect(mousePos, ratio, _rRect[0], _rRect[1],
+				_rRect[0] = draw.area.back();
+				_rRect[1] = draw.area.front();
+				Geometry::getARect(mousePos, ratio, _rRect[0], _rRect[1],
                          _rRect[2], _rRect[3]);
 
 				for (size_t i = 0; i < _rRect.size(); i++)
@@ -310,13 +378,13 @@ public:
 			}
 		}
 
-		if (mode == AXIS_RECT)
+		if (draw.mode == AXIS_RECT)
 		{
-			if (drawing.size() == 1)
+			if (draw.area.size() == 1)
 			{
 				vector<Point2f> _aRect(4);
-				_aRect[0] = drawing.front();
-				getARect(mousePos, ratio, _aRect[0], _aRect[1],
+				_aRect[0] = draw.area.front();
+				Geometry::getARect(mousePos, ratio, _aRect[0], _aRect[1],
                          _aRect[2], _aRect[3]);
 				rectangle(output, _aRect[0],
 					_aRect[2],
@@ -328,7 +396,6 @@ public:
 		}
 		
     };
-
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
@@ -358,19 +425,49 @@ public:
 
     virtual void newAnnotation();
 
-    virtual bool readActionTypeFile(const string &filename);
+    static bool readActionTypeFile(const string &filename,
+                                   vector<string> &actions);
+};
 
-    virtual void write(const string &filename) = 0;
 
-    virtual int read(const string &filename) = 0;
+struct ATTR
+{
+    static string VERSION;
+    static string FILENAME;
+    static string TYPE;
+    static string ENCODING;
+    static string FRAMEC;
+    static string ID;
+    static string TARGETC;
+    static string ACTION;
+    static string TARGET1;
+    static string TARGET2;
+
+
+    static string WIDTH;
+    static string HEIGHT;
+
+    static string T_FOLDER;
+    static string T_FILE;
+};
+
+struct NODE
+{
+    static string SEQ;
+    static string ACTIONS;
+    static string ACTION;
+    static string FRAME;
+    static string TARGET;
+    static string LOCATION;
+    static string MATCHING;
+    static string MATCH;
 };
 
 
 class XMLAnnotateProcess: public AnnotateProcess
 {
-    
     /*
-     * Convert string to the right encoding 
+     * Convert string to the right encoding
      */
     static char *toChar(xml_document<> &doc, const string &name);
     /**
@@ -383,17 +480,25 @@ class XMLAnnotateProcess: public AnnotateProcess
      *  creates a node with the name
      */
     static xml_node<char> *node(xml_document<> &doc, const string &name);
-    
+
+
+    static xml_attribute<char> *hasAttribute(xml_node<> &node, const string &name)
+    {
+        return node.first_attribute(name.c_str());
+    }
     /*
      * reads an attribute from the node and converts it to type T
      */
     template<class T>
     static T readAttribute(xml_node<> &node, const string &name)
     {
-        char *data = node.first_attribute(name.c_str())->value();
-        istringstream ss(data);
-        T _tmp;
-        ss >> _tmp;
+        xml_attribute<char> *attr = hasAttribute(node, name);
+        T _tmp = T();
+        if (attr)
+        {
+            istringstream ss(attr->value());
+            ss >> _tmp;
+        }
         return _tmp;
     }
     /*parses a string with the following format
@@ -404,36 +509,7 @@ class XMLAnnotateProcess: public AnnotateProcess
     
 public:
     
-    struct ATTR
-    {
-        static string VERSION;
-        static string FILENAME;
-        static string TYPE;
-        static string ENCODING;
-        static string FRAMEC;
-        static string ID;
-        static string TARGETC;
-        static string ACTION;
-        static string TARGET1;
-        static string TARGET2;
 
-        
-        static string WIDTH;
-        static string HEIGHT;
-        
-        static string T_FOLDER;
-        static string T_FILE;
-    };
-    
-    struct NODE
-    {
-        static string SEQ;
-        static string FRAME;
-        static string TARGET;
-        static string LOCATION;
-        static string MATCHING;
-        static string MATCH;
-    };
     
     string input;
     int width;
@@ -460,22 +536,31 @@ public:
         : AnnotateProcess(ratioYX, method, track, action, totalFrameN),
          input(_input), width(inputWidth), height(inputHeight), ID(sequenceID)
     {}
-    
-    virtual void write(const string &filename);
+
     static  void writeHeader(xml_document<> &doc);
-    virtual void writeSequence(xml_document<> &doc);
+    static  void writeActions(xml_document<> &doc, const vector<string> &actions);
+    void writeSequence(xml_document<> &doc);
+    void write(const string &filename);
+
     
-    virtual int   read(const string &filename);
+    size_t read(const string &filename, int sequenceID);
+
     static size_t parse(const string &filename,
                      vector<vector<Annotation>> &annotation);
-    static size_t readSequence(xml_node<> &sequence,
-                               vector<vector<Annotation>> &ann,
-                               vector<string> &filenames,
-                               size_t &sequenceID,
-                               int &width,
-                               int &height);
-    
-    
+
+
+    static void readSequenceMetadata(xml_node<> &sequence,
+                                     size_t &sequenceID,
+                                     size_t &frameCount,
+                                     string &type,
+                                     int &width,
+                                     int &height);
+    static void readSequenceFilenames(xml_node<> &sequence,
+                                      vector<string> &filenames);
+    static size_t readSequenceAnnotations(xml_node<> &sequence,
+                                        vector<vector<Annotation>> &ann);
+
+
     
 };
 #endif
