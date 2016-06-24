@@ -93,6 +93,8 @@ void KTrackers::processFrame(const cv::Mat &frame)
     Size2d tsz(min((double)sz.width, _target.size.width/_params.cell_size),
                min((double)sz.height,_target.size.height/_params.cell_size));
     
+    double response = 1;
+    
     if (_target.initiated)
     {
         Point shift;
@@ -119,9 +121,10 @@ void KTrackers::processFrame(const cv::Mat &frame)
                 break;
             }
         }
-        KTrackers::fastDetection(_target.model_alphaf, kzf, shift);
+        response = KTrackers::fastDetection(_target.model_alphaf, kzf, shift);
         _shift = Point2f(_params.cell_size * Point2f(shift.x, shift.y));
         _target.center = _target.center + _shift;
+        
         
         if (_params.scale)
         {

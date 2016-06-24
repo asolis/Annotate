@@ -35,6 +35,7 @@
 #ifndef __annotate__process__
 #define __annotate__process__
 
+#include "clp.hpp"
 #include "viva.h"
 #include "skcfdcf.h"
 #include "rapidxml.hpp"
@@ -43,6 +44,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <map>
 
 using namespace viva;
 using namespace rapidxml;
@@ -62,7 +64,6 @@ struct Color
     const static Scalar teal;
     const static Scalar orange;
 };
-
 struct Annotation
 {
     int ID;
@@ -72,8 +73,7 @@ struct Annotation
     vector<Point2f> area;
     
 };
-
-
+class XMLAnnotateProcess;
 class InputFactory
 {
 public:
@@ -86,8 +86,27 @@ public:
     static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
     static Ptr<Input> create(const string &sequence, vector<string> &filenames, const Size sz = Size(-1, -1));
     static string  findInputGroundTruth(const string &sequence, const string &defaultname);
+    
+    static int getMode(CommandLineParserExt &parser);
+    
+    static void load(CommandLineParserExt &parser,
+              vector<Ptr<Input>> &inputs,
+                     vector<Ptr<XMLAnnotateProcess>> &processes);
+    
+    static void initialize(CommandLineParserExt &parser,
+                    vector<string> &actions,
+                    vector<Ptr<Input>> &inputs,
+                    vector<Ptr<XMLAnnotateProcess>> &processes);
+    
+    
+    
+    
+    
+    static void write(const string &filename,
+               vector<string> &actions,
+                      vector<Ptr<XMLAnnotateProcess>> &processes);
+    
 };
-
 class Draw
 {
 public:
@@ -110,7 +129,6 @@ public:
                                    const Scalar &background = Color::yellow,
                                    const Scalar &foreground = Color::red);
 };
-
 class Geometry
 {
 public:
@@ -145,8 +163,6 @@ public:
      */
     static Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
 };
-
-
 class AnnotateProcess : public ProcessFrame
 {
 protected:
@@ -183,8 +199,8 @@ protected:
      */
     bool tracking;
 	bool annotatingActions;
-
-
+    
+ 
 public:
     static int currentAnnotationID;
 
@@ -201,7 +217,7 @@ public:
 
     vector<std::string> actions;
 
-
+    map<int, Ptr<SKCFDCF>> trackers;
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
      *                  a negative value will remove any ratio constraint.
@@ -228,172 +244,22 @@ public:
 		              annotatingActions(action),
                       annotations(totalFrameN),
                       draw(),
-                      actions()
+                      actions(),
+                      trackers()
 
     {
         draw.mode = method;
         draw.action = "";
     }
 
-    void setAnnotationAspectRation(float ratioYX)
-    {
-        ratio = ratioYX;
-    }
+    void setAnnotationAspectRation(float ratioYX);
+    void setAnnotationMode(int m);
+    void enableTracking(bool flag = true);
+    void setActions(vector<string> &actns);
+    void setNumberOfFrames(int frameCount);
+    void setAnnotations(vector<vector<Annotation>> &ann);
 
-    void setAnnotationMode(int m)
-    {
-        draw.mode = m;
-    }
-
-    void enableTracking(bool flag = true)
-    {
-        tracking = flag;
-    }
-
-    void setActions(vector<string> &actns)
-    {
-        actions = actns;
-        if (actions.size() != 0)
-        {
-            draw.action = actions[0];
-            annotatingActions = true;
-        }
-        else
-            annotatingActions = false;
-    }
-    void setNumberOfFrames(int frameCount)
-    {
-        totalNumberOfFrames = frameCount;
-        annotations.clear();
-        annotations.resize(frameCount);
-    }
-
-    void setAnnotations(vector<vector<Annotation>> &ann)
-    {
-        annotations = ann;
-        totalNumberOfFrames = ann.size();
-    }
-
-	virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
-	{
-    
-        if (tracking && ( frameN == (currentFrameN + 1) ))
-        {
-            for (size_t i = 0; (currentFrameN < annotations.size()) &&
-                               (i < annotations[currentFrameN].size()); i++)
-            {
-                Annotation &previous = annotations[currentFrameN][i];
-                if (previous.tracking)
-                {
-                    previous.tracking = false;
-                    
-                    Annotation newAnnotation;
-                    newAnnotation.ID = previous.ID;
-                    newAnnotation.tracking = true;
-                    newAnnotation.mode   = draw.mode;
-                    newAnnotation.action = draw.action;
-                    
-                    Rect area = boundingRect(previous.area);
-                    
-                    if (area.area() > 1)
-                    {
-                        Ptr<SKCFDCF> tmp = initTracker(currentFrame, boundingRect(previous.area));
-                        tmp->processFrame(frame);
-                        tmp->getTrackedArea(newAnnotation.area);
-                    
-                        if (frameN < annotations.size())
-                            annotations[frameN].push_back(newAnnotation);
-                    }
-                }
-            }
-        }
-        
-        
-        currentFrameN = frameN;
-		frame.copyTo(output);
-		frame.copyTo(currentFrame);
-
-		if (showHelp)
-			helpHUD(output);
-
-		for (int i = 0; (i < annotations[currentFrameN].size()) &&
-                        (currentFrameN < annotations.size()); i++)
-		{
-            Draw::displayAnnotation(output, annotations[currentFrameN][i],
-                                    Color::yellow, Color::red, thickness, true);
-		}
-
-        draw.ID = (isAnnotationSelected())?
-                    annotations[currentFrameN][selection].ID :
-                    currentAnnotationID;
-
-        Draw::displayAnnotation(output, draw,
-                                Color::red,
-                                Color::yellow, thickness, draw.mode != POLY);
-
-		if (draw.mode == POLY)
-		{
-			if (draw.area.size() > 0)
-			{
-				line(output, draw.area.back(), mousePos,
-					Color::blue, thickness - 1, CV_AA);
-				line(output, mousePos, draw.area.front(),
-					Color::red, thickness - 1, CV_AA);
-			}
-		}
-
-		if (draw.mode == ROTA_RECT)
-		{
-			int pts = draw.area.size();
-
-			if (pts == 1)
-			{
-				line(output, draw.area.front(), mousePos,
-					Color::blue, thickness - 1, CV_AA);
-			}
-			else if (pts == 2)
-			{
-
-
-				vector<Point2f> _rRect(4);
-				_rRect[0] = draw.area.back();
-				_rRect[1] = draw.area.front();
-				Geometry::getRRect(mousePos, ratio, _rRect[0], _rRect[1],
-                         _rRect[2], _rRect[3]);
-
-				for (size_t i = 0; i < _rRect.size(); i++)
-				{
-					line(output, _rRect[i], _rRect[(i + 1) % 4],
-						(i == 0) ? Color::red : Color::blue,
-						(i == 0) ? thickness : thickness - 1, CV_AA);
-				}
-
-				circle(output, _rRect[2], thickness, Color::green);
-
-				if (ratio > 0)
-					circle(output, _rRect[0], thickness, Color::yellow);
-
-			}
-		}
-
-		if (draw.mode == AXIS_RECT)
-		{
-			if (draw.area.size() == 1)
-			{
-				vector<Point2f> _aRect(4);
-				_aRect[0] = draw.area.front();
-				Geometry::getARect(mousePos, ratio, _aRect[0], _aRect[1],
-                         _aRect[2], _aRect[3]);
-				rectangle(output, _aRect[0],
-					_aRect[2],
-					Color::blue,
-					thickness - 1,
-					CV_AA);
-				circle(output, _aRect[2], thickness - 1, Color::green);
-			}
-		}
-		
-    };
+    virtual void operator()(const size_t frameN, const Mat &frame, Mat &output);
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
@@ -426,8 +292,6 @@ public:
     static bool readActionTypeFile(const string &filename,
                                    vector<string> &actions);
 };
-
-
 struct ATTR
 {
     static string VERSION;
@@ -448,7 +312,6 @@ struct ATTR
     static string T_FOLDER;
     static string T_FILE;
 };
-
 struct NODE
 {
     static string SEQ;
@@ -460,8 +323,6 @@ struct NODE
     static string MATCHING;
     static string MATCH;
 };
-
-
 class XMLAnnotateProcess: public AnnotateProcess
 {
     /*
@@ -505,14 +366,7 @@ class XMLAnnotateProcess: public AnnotateProcess
      */
     static void parseLocation(const string &loc, vector<Point2f> &pts);
 
-    static void readXML(const string &filename, xml_document<> &doc)
-    {
-        ifstream file(filename);
-        vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-        buffer.push_back('\0');
-        doc.parse<0>(&buffer[0]);
-        file.close();
-    }
+    
     
 public:
     
@@ -553,7 +407,7 @@ public:
 
     
     size_t read(const string &filename);
-
+    size_t read(xml_document<> &doc);
 
     static void readSequenceMetadata(xml_node<> &sequence,
                                      size_t &sequenceID,
@@ -566,7 +420,14 @@ public:
     static size_t readSequenceAnnotations(xml_node<> &sequence,
                                         vector<vector<Annotation>> &ann);
 
-
+    static void readXML(const string &filename, xml_document<> &doc)
+    {
+        ifstream file(filename);
+        vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+        buffer.push_back('\0');
+        doc.parse<0>(&buffer[0]);
+        file.close();
+    }
     
 };
 #endif

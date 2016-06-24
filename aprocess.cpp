@@ -187,21 +187,132 @@ Ptr<Input> InputFactory::create(const string &sequence, const Size sz)
     return Ptr<Input>();
 }
 
-Ptr<Input> create(const string &sequence,
+Ptr<Input> InputFactory::create(const string &sequence,
                   vector<string> &filenames,
-                  const Size sz = Size(-1, -1))
+                  const Size sz)
 {
     vector<string> fullpath;
     bool sep = (sequence.substr(sequence.size()-1) == viva::Files::PATH_SEPARATOR);
     for (size_t i = 0; i < filenames.size(); i++)
     {
-        stringstream ss(sequence);
+        stringstream ss;
 
-        ss << ((sep) ? "": viva::Files::PATH_SEPARATOR) <<
+        ss << sequence << ((sep) ? "": viva::Files::PATH_SEPARATOR) <<
                 filenames[i];
         fullpath.push_back(ss.str());
     }
     return new ImageListInput(fullpath, sz, -1,0);
+}
+
+int InputFactory::getMode(CommandLineParserExt &parser)
+{
+    string mname    = parser.get<string>("m");
+    int method = AnnotateProcess::AXIS_RECT;
+    if (mname == "r")
+        method = AnnotateProcess::ROTA_RECT;
+    else if (mname == "p")
+        method = AnnotateProcess::POLY;
+    return method;
+}
+
+void InputFactory::load(CommandLineParserExt &parser,
+          vector<Ptr<Input>> &inputs,
+          vector<Ptr<XMLAnnotateProcess>> &processes)
+{
+    xml_document<> doc;
+    XMLAnnotateProcess::readXML(parser.get<string>("i"), doc);
+    
+    vector<string> actns;
+    xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
+    XMLAnnotateProcess::readActions(*aNode, actns);
+    
+    
+    
+    xml_node<> *sequence = doc.first_node(NODE::SEQ.c_str());
+    
+    size_t maxID = 0;
+    for (size_t i = 0 ; sequence; sequence = sequence->next_sibling(), i++)
+    {
+        vector<string> filenames;
+        int width, height;
+        string type;
+        size_t sID, cFC;
+        
+        
+        XMLAnnotateProcess::readSequenceMetadata(*sequence, sID, cFC, type, width, height);
+        XMLAnnotateProcess::readSequenceFilenames(*sequence, filenames);
+        Ptr<Input> input = InputFactory::create(parser.get<string>(i), filenames, Size(width, height));
+        inputs.push_back(input);
+        
+        InputFactory::create(parser.get<string>(i), filenames, Size(width, height));
+        
+        Ptr<XMLAnnotateProcess> process = new XMLAnnotateProcess(parser.get<string>(i),
+                                                                 width,
+                                                                 height,
+                                                                 i);
+        size_t mID = process->read(parser.get<string>("i"));
+        
+        
+        maxID = (mID > maxID)? mID : maxID;
+        
+        processes.push_back(process);
+        
+    }
+    AnnotateProcess::currentAnnotationID = maxID + 1;
+}
+
+void InputFactory::initialize(CommandLineParserExt &parser,
+                vector<string> &actions,
+                vector<Ptr<Input>> &inputs,
+                vector<Ptr<XMLAnnotateProcess>> &processes)
+{
+    
+    
+    /** create the list of inputs and annotation process **/
+    for (size_t i = 0; i < parser.n_positional_args(); i++)
+    {
+        Ptr<Input> input = InputFactory::create(parser.get<string>(i),
+                                                Size(parser.get<int>("W"), parser.get<int>("H")));
+        
+        inputs.push_back(input);
+        
+        Ptr<XMLAnnotateProcess> process  = new XMLAnnotateProcess(parser.get<string>(i),
+                                                                  input->getWidth(),
+                                                                  input->getHeight(),
+                                                                  i,
+                                                                  parser.get<float>("r"),
+                                                                  getMode(parser),
+                                                                  parser.has("t"),
+                                                                  parser.has("a"),
+                                                                  input->totalFrames());
+        
+        process->setActions(actions);
+        processes.push_back(process);
+    }
+    AnnotateProcess::currentAnnotationID = 0;
+}
+
+
+
+
+
+void InputFactory::write(const string &filename,
+           vector<string> &actions,
+           vector<Ptr<XMLAnnotateProcess>> &processes)
+{
+    xml_document<> doc;
+    
+    XMLAnnotateProcess::writeHeader(doc);
+    XMLAnnotateProcess::writeActions(doc, actions);
+    
+    for (size_t i = 0; i < processes.size(); i++)
+    {
+        processes[i]->writeSequence(doc);
+    }
+    ofstream file;
+    file.open(filename);
+    file << doc;
+    file.close();
 }
 
 
@@ -238,6 +349,175 @@ string  InputFactory::findInputGroundTruth(const string &sequence, const string 
 }
 
 
+void AnnotateProcess::setAnnotationAspectRation(float ratioYX)
+{
+    ratio = ratioYX;
+}
+
+void AnnotateProcess::setAnnotationMode(int m)
+{
+    draw.mode = m;
+}
+
+void AnnotateProcess::enableTracking(bool flag)
+{
+    tracking = flag;
+}
+
+void AnnotateProcess::setActions(vector<string> &actns)
+{
+    actions = actns;
+    if (actions.size() != 0)
+    {
+        draw.action = actions[0];
+        annotatingActions = true;
+    }
+    else
+        annotatingActions = false;
+}
+void AnnotateProcess::setNumberOfFrames(int frameCount)
+{
+    totalNumberOfFrames = frameCount;
+    annotations.clear();
+    annotations.resize(frameCount);
+}
+
+void AnnotateProcess::setAnnotations(vector<vector<Annotation>> &ann)
+{
+    annotations = ann;
+    totalNumberOfFrames = ann.size();
+}
+
+void AnnotateProcess::operator()(const size_t frameN, const Mat &frame, Mat &output)
+{
+   
+    
+   
+    if (tracking && ( frameN == (currentFrameN + 1) ))
+    {
+      
+        for (size_t i = 0; (currentFrameN < annotations.size()) &&
+             (i < annotations[currentFrameN].size()); i++)
+        {
+            Annotation &previous = annotations[currentFrameN][i];
+            if (previous.tracking)
+            {
+                previous.tracking = false;
+                
+                Annotation newAnnotation;
+                newAnnotation.ID = previous.ID;
+                newAnnotation.tracking = true;
+                newAnnotation.mode   = draw.mode;
+                newAnnotation.action = draw.action;
+                newAnnotation.area   = previous.area;
+                
+                Rect area = boundingRect(previous.area);
+                
+                if (area.area() > 1)
+                {
+                    map<int,Ptr<SKCFDCF>>::iterator it = trackers.find(previous.ID);
+                    if (it != trackers.end())
+                    {
+                        it->second->processFrame(frame);
+                        Point2f shift;
+                        float scale;
+                        it->second->getTransformation(shift, scale);
+                        for (size_t j = 0; j < newAnnotation.area.size(); j++)
+                            newAnnotation.area[j] += shift;
+                    }
+                }
+                if (frameN < annotations.size())
+                    annotations[frameN].push_back(newAnnotation);
+            }
+        }
+    }
+    
+    currentFrameN = frameN;
+    frame.copyTo(output);
+    frame.copyTo(currentFrame);
+    
+    
+    if (showHelp)
+        helpHUD(output);
+    
+    for (int i = 0; (i < annotations[currentFrameN].size()) &&
+         (currentFrameN < annotations.size()); i++)
+    {
+        Draw::displayAnnotation(output, annotations[currentFrameN][i],
+                                Color::yellow, Color::red, thickness, true);
+    }
+    
+    draw.ID = (isAnnotationSelected())?
+    annotations[currentFrameN][selection].ID :
+    currentAnnotationID;
+    
+    Draw::displayAnnotation(output, draw,
+                            Color::red,
+                            Color::yellow, thickness, draw.mode != POLY);
+    
+    if (draw.mode == POLY)
+    {
+        if (draw.area.size() > 0)
+        {
+            line(output, draw.area.back(), mousePos,
+                 Color::blue, thickness - 1, CV_AA);
+            line(output, mousePos, draw.area.front(),
+                 Color::red, thickness - 1, CV_AA);
+        }
+    }
+    
+    if (draw.mode == ROTA_RECT)
+    {
+        int pts = draw.area.size();
+        
+        if (pts == 1)
+        {
+            line(output, draw.area.front(), mousePos,
+                 Color::blue, thickness - 1, CV_AA);
+        }
+        else if (pts == 2)
+        {
+            
+            
+            vector<Point2f> _rRect(4);
+            _rRect[0] = draw.area.back();
+            _rRect[1] = draw.area.front();
+            Geometry::getRRect(mousePos, ratio, _rRect[0], _rRect[1],
+                               _rRect[2], _rRect[3]);
+            
+            for (size_t i = 0; i < _rRect.size(); i++)
+            {
+                line(output, _rRect[i], _rRect[(i + 1) % 4],
+                     (i == 0) ? Color::red : Color::blue,
+                     (i == 0) ? thickness : thickness - 1, CV_AA);
+            }
+            
+            circle(output, _rRect[2], thickness, Color::green);
+            
+            if (ratio > 0)
+                circle(output, _rRect[0], thickness, Color::yellow);
+            
+        }
+    }
+    
+    if (draw.mode == AXIS_RECT)
+    {
+        if (draw.area.size() == 1)
+        {
+            vector<Point2f> _aRect(4);
+            _aRect[0] = draw.area.front();
+            Geometry::getARect(mousePos, ratio, _aRect[0], _aRect[1],
+                               _aRect[2], _aRect[3]);
+            rectangle(output, _aRect[0],
+                      _aRect[2],
+                      Color::blue,
+                      thickness - 1,
+                      CV_AA);
+            circle(output, _aRect[2], thickness - 1, Color::green);
+        }
+    }
+    
+}
 
 bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 {
@@ -250,9 +530,6 @@ void AnnotateProcess::swapPolygon(int i)
     swap(draw.area, annotations[currentFrameN][i].area);
     swap(draw.mode, annotations[currentFrameN][i].mode);
     swap(draw.action, annotations[currentFrameN][i].action);
-//	swap(drawing, annotations[currentFrameN][i].area);
-//	swap(mode, annotations[currentFrameN][i].mode);
-//	swap(currentAction, annotations[currentFrameN][i].action);
 }
 int AnnotateProcess::findAnnotationIndexContaining(const Point2f &pt)
 {
@@ -544,7 +821,7 @@ void AnnotateProcess::newAnnotation()
     if (acceptPolygon(draw.area, draw.mode))
     {
         Annotation tmp;
-        //Rect area = boundingRect(drawing);
+        
         if (selection < 0)
         {
             tmp.area = draw.area;
@@ -553,16 +830,28 @@ void AnnotateProcess::newAnnotation()
             tmp.ID = AnnotateProcess::currentAnnotationID++;
             tmp.tracking = true;
             annotations[currentFrameN].push_back(tmp);
+            
+            Rect area = boundingRect(draw.area);
+            Ptr<SKCFDCF> _t = initTracker(currentFrame, area);
+            trackers.insert(pair<int,Ptr<SKCFDCF>>(tmp.ID, _t));
         }
         else if (selection >= 0 && selection < annotations[currentFrameN].size() )
         {
             annotations[currentFrameN][selection].area = draw.area;
             annotations[currentFrameN][selection].mode = draw.mode;
             annotations[currentFrameN][selection].action = draw.action;
-            //annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
+            
+            int _id = annotations[currentFrameN][selection].ID;
+            trackers[_id]->initialize(currentFrame, boundingRect(draw.area));
         }
+        
+        
+        
+        
         draw.area.clear();
         selection = -1;
+        
+        
     }
 }
 bool AnnotateProcess::readActionTypeFile(const string &filename, vector<string> &actions)
@@ -810,7 +1099,14 @@ void XMLAnnotateProcess::readSequenceFilenames(xml_node<> &sequence,
 size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
                                     vector<vector<Annotation>> &ann)
 {
-    size_t maxID = 0;
+    
+    size_t maxID = 0, frameCount, sequenceID;
+    int w,h;
+    string type;
+    
+    readSequenceMetadata(sequence, sequenceID, frameCount, type, w, h);
+    ann.resize(frameCount);
+    
     for (xml_node<> *frame = sequence.first_node(NODE::FRAME.c_str());
          frame;
          frame = frame->next_sibling())
@@ -852,31 +1148,40 @@ void XMLAnnotateProcess::readActions(xml_node<> &actions, vector<string> &actns)
     }
 }
 
+
+size_t XMLAnnotateProcess::read(xml_document<> &doc)
+{
+   
+
+    return 0;
+}
+
 size_t XMLAnnotateProcess::read(const string &filename)
 {
     xml_document<> doc;
     readXML(filename, doc);
 
+    
     vector<string> actns;
     xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
     readActions(*aNode, actns);
-
+    
     setActions(actns);
-
+    
     xml_node<>* sequence = doc.first_node(NODE::SEQ.c_str());
     for (size_t i = 0; i < ID; i++)
         sequence = sequence->next_sibling();
-
+    
     size_t ID, frameCount;
     string TYPE;
-
+    
     readSequenceMetadata(*sequence, ID, frameCount, TYPE, width, height);
-
+    
     vector<vector<Annotation>> ann;
     size_t maxID = readSequenceAnnotations(*sequence, ann);
-
+    
     setAnnotations(ann);
-
-
+    
+    
     return maxID;
 }
