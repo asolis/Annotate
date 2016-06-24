@@ -63,20 +63,7 @@ class CommandLineParserExt
         auto last  = s.find_last_not_of(' ');
         return s.substr(front, (last - front + 1));
     }
-    /**
-     ** Converts one-based index to zero-based index
-     ** while checking the boundaries
-     **/
-    int zeroBaseIdx(int index) const
-    {
-        if (index <= 1)
-            index = 0;
-        else if (index >= n_positional_args())
-            index = n_positional_args() - 1;
-        else
-            index--;
-        return index;
-    }
+
 public:
     CommandLineParserExt(int argc, const char* const argv[], const std::string& keys) :
     _clp(argc, argv, keys)
@@ -103,9 +90,8 @@ public:
     template<typename T>
     T get(int index, bool space_delete = true) const
     {
-        int idx = zeroBaseIdx(index);
         stringstream ss;
-        ss << pos_args[idx];
+        ss << pos_args[index];
         T t;
         ss >> t;
         return t;

@@ -145,7 +145,7 @@ int main(int argc, const char * argv[])
 
     
     /** create the list of inputs and annotation process **/
-    for (size_t i = 1; i <= parser.n_positional_args(); i++)
+    for (size_t i = 0; i < parser.n_positional_args(); i++)
     {
         Ptr<Input> input = InputFactory::create(parser.get<string>(i),
                                 Size(parser.get<int>("W"),
@@ -158,14 +158,14 @@ int main(int argc, const char * argv[])
         process = new XMLAnnotateProcess(parser.get<string>(i),
                                          input->getWidth(),
                                          input->getHeight(),
-                                         i - 1,
+                                         i,
                                          parser.get<float>("r"),
                                          method,
                                          parser.has("t"),
                                          parser.has("a"),
                                          input->totalFrames());
 
-
+        process->setActions(actions);
         _process.push_back(process);
         proc.push_back(process);
     }

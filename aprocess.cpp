@@ -47,6 +47,74 @@ const Scalar Color::orange = Scalar(22,134,241);
 
 int AnnotateProcess::currentAnnotationID = 0;
 
+
+void Geometry::getRRect(const Point2f &mPos, float ratio,
+                        Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4)
+{
+    Point2f vec = Geometry::vectorPerpendicularToSegment(p1, p2);
+
+    float t = Geometry::closestPointToRay(mPos, p2, p2 + vec);
+    p3 = p2 + t * vec;
+
+    if (ratio > 0)
+    {
+        Point2f vec_ = p1 - p2;
+        float mag      = cv::norm(vec_);
+        double magP2P3 = cv::norm(p3 - p2);
+        vec_ = (vec_/mag) * (1/ratio) * magP2P3;
+        p1 = p2 + vec_;
+    }
+
+    p4 = p1 + t * vec;
+}
+void Geometry::getARect(const Point2f &mPos, float ratio,
+                        Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4)
+{
+    Point2f p = mPos;
+
+    if (ratio > 0)
+    {
+        Point2f vec(1.0f, ratio);
+        float t = Geometry::closestPointToRay(mPos, p1, p1 + vec);
+        p =  p1 + t * vec;
+    }
+
+    vector<Point2f> tmp = {p1, p};
+    Rect area = boundingRect(tmp);
+    area.width -= 1;
+    area.height -= 1;
+
+    p1 = area.tl();
+    p2 = area.tl() + Point(area.width, 0);
+    p3 = area.br();
+    p4 = area.tl() + Point(0, area.height);
+}
+Point2f Geometry::vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
+{
+    Point2f tmp = e - s;
+    return Point2f( -tmp.y, tmp.x);
+}
+float Geometry::closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
+{
+    float A = pt.x - s.x;
+    float B = pt.y - s.y;
+    float C = e.x - s.x;
+    float D = e.y - s.y;
+
+    float dot = A*C + B*D;
+    float len_sq = C*C + D*D;
+    return dot/len_sq;
+}
+bool Geometry::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
+{
+    return polygon.size() > 0 && pointPolygonTest(polygon, pt, false) > 0;
+}
+Point2f Geometry::centroid(const vector<Point2f> &corners)
+{
+    Moments mu = moments(corners);
+    return Point2f(mu.m10/mu.m00, mu.m01/mu.m00);
+}
+
 bool InputFactory::filenames(const string &folder, vector<string> &filenames)
 {
     filenames.clear();
@@ -94,8 +162,6 @@ bool InputFactory::isCameraID(const string &s)
     return !s.empty() && std::find_if(s.begin(),
                                       s.end(), [](char c) { return !std::isdigit(c); }) == s.end();
 }
-
-
 Ptr<Input> InputFactory::create(const string &sequence, const Size sz)
 {
     if (isVideoFile(sequence))
@@ -120,6 +186,25 @@ Ptr<Input> InputFactory::create(const string &sequence, const Size sz)
     }
     return Ptr<Input>();
 }
+
+Ptr<Input> create(const string &sequence,
+                  vector<string> &filenames,
+                  const Size sz = Size(-1, -1))
+{
+    vector<string> fullpath;
+    bool sep = (sequence.substr(sequence.size()-1) == viva::Files::PATH_SEPARATOR);
+    for (size_t i = 0; i < filenames.size(); i++)
+    {
+        stringstream ss(sequence);
+
+        ss << ((sep) ? "": viva::Files::PATH_SEPARATOR) <<
+                filenames[i];
+        fullpath.push_back(ss.str());
+    }
+    return new ImageListInput(fullpath, sz, -1,0);
+}
+
+
 
 string  InputFactory::findInputGroundTruth(const string &sequence, const string &defaultname)
 {
@@ -153,17 +238,7 @@ string  InputFactory::findInputGroundTruth(const string &sequence, const string 
 }
 
 
-float Geometry::closestPointToRay(const Point2f &pt, const Point2f &s, const Point2f &e)
-{
-    float A = pt.x - s.x;
-    float B = pt.y - s.y;
-    float C = e.x - s.x;
-    float D = e.y - s.y;
 
-    float dot = A*C + B*D;
-    float len_sq = C*C + D*D;
-    return dot/len_sq;
-}
 bool AnnotateProcess::acceptPolygon(const vector<Point2f> &polyg, int m)
 {
     return  (m == AXIS_RECT && polyg.size() >= 2) ||
@@ -178,10 +253,6 @@ void AnnotateProcess::swapPolygon(int i)
 //	swap(drawing, annotations[currentFrameN][i].area);
 //	swap(mode, annotations[currentFrameN][i].mode);
 //	swap(currentAction, annotations[currentFrameN][i].action);
-}
-bool Geometry::ptInsidePolygon(const Point2f &pt, const vector<Point2f> &polygon)
-{
-    return polygon.size() > 0 && pointPolygonTest(polygon, pt, false) > 0;
 }
 int AnnotateProcess::findAnnotationIndexContaining(const Point2f &pt)
 {
@@ -201,108 +272,6 @@ Ptr<SKCFDCF> AnnotateProcess::initTracker(Mat frame, Rect area)
 	tmp->initialize(frame, area);
 	return tmp;
 }
-Point2f Geometry::vectorPerpendicularToSegment(const Point2f &s, const Point2f &e)
-{
-    Point2f tmp = e - s;
-    return Point2f( -tmp.y, tmp.x);
-}
-
-
-
-void Draw::displayPolygonInfo(cv::Mat &image,
-                              const string &info,
-                              const vector<Point2f> &pts,
-                              const Scalar &background,
-                              const Scalar &foreground)
-{
-    if (pts.size() > 0)
-    {
-        auto ref = std::min_element(pts.begin(), pts.end(),
-                                    [](const Point2f &p1, const Point2f &p2)
-                                    {
-                                        return p1.y < p2.y;
-                                    });
-        
-        rectangle(image, *ref - Point2f(0,10),
-                         *ref + Point2f(70,0),
-                         background, -1);
-        
-        putText(image, info, *ref - Point2f(0,2),
-                FONT_HERSHEY_SIMPLEX, .3, foreground, 1, CV_AA);
-    }
-}
-
-void Draw::displayAnnotation(cv::Mat &image,
-                             Annotation &ann,
-                             const Scalar &background,
-                             const Scalar &foreground,
-                             int thickness,
-                             bool close)
-{
-    displayPolygon(image, ann.area, background, thickness, close);
-    string info = ((ann.tracking)?"[T] ":"") + to_string(ann.ID) +
-                  ": " + ann.action;
-    
-    displayPolygonInfo(image, info, ann.area, background, foreground);
-
-}
-
-
-void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &color, int thickness, bool close)
-{
-    int i = 0;
-    for ( i = 0; i < ((int)pts.size() - 1); i++)
-    {
-        line(image, pts[i], pts[i + 1],
-             color, thickness, CV_AA );
-    }
-    if (close && pts.size() > 0 )
-        line(image, pts[i], pts[0],
-             color, thickness, CV_AA );
-}
-
-void Geometry::getRRect(const Point2f &mPos, float ratio,
-              Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4)
-{
-    Point2f vec = Geometry::vectorPerpendicularToSegment(p1, p2);
-
-    float t = Geometry::closestPointToRay(mPos, p2, p2 + vec);
-    p3 = p2 + t * vec;
-
-    if (ratio > 0)
-    {
-        Point2f vec_ = p1 - p2;
-        float mag      = cv::norm(vec_);
-        double magP2P3 = cv::norm(p3 - p2);
-        vec_ = (vec_/mag) * (1/ratio) * magP2P3;
-        p1 = p2 + vec_;
-    }
-
-    p4 = p1 + t * vec;
-}
-void Geometry::getARect(const Point2f &mPos, float ratio,
-              Point2f &p1, Point2f &p2, Point2f &p3, Point2f &p4)
-{
-    Point2f p = mPos;
-
-    if (ratio > 0)
-    {
-        Point2f vec(1.0f, ratio);
-        float t = Geometry::closestPointToRay(mPos, p1, p1 + vec);
-        p =  p1 + t * vec;
-    }
-
-    vector<Point2f> tmp = {p1, p};
-    Rect area = boundingRect(tmp);
-    area.width -= 1;
-    area.height -= 1;
-
-    p1 = area.tl();
-    p2 = area.tl() + Point(area.width, 0);
-    p3 = area.br();
-    p4 = area.tl() + Point(0, area.height);
-}
-
 void AnnotateProcess::helpHUD(Mat &image)
 {
     std::stringstream ss;
@@ -323,11 +292,11 @@ void AnnotateProcess::helpHUD(Mat &image)
         ss << "(ratio=" << ratio << ")";
 
     vector<string> help;
-	help.push_back(" Frame Number : " +
+    help.push_back(" Frame Number : " +
                    std::to_string(currentFrameN) + "/" +
                    std::to_string(totalNumberOfFrames - 1));
 
-	help.push_back(" Options:");
+    help.push_back(" Options:");
     help.push_back(ss.str());
     help.push_back(" (h) : Toggle this help ");
     help.push_back(" (n) : Next frame");
@@ -344,7 +313,7 @@ void AnnotateProcess::helpHUD(Mat &image)
 
 
     Rect region(0, 0, (characterWidth * fsize + margin) * 2,
-                      help.size()    * fsize + margin);
+                help.size()    * fsize + margin);
     region &= Rect(0,0, image.cols, image.rows);
 
     GaussianBlur(image(region),
@@ -356,20 +325,20 @@ void AnnotateProcess::helpHUD(Mat &image)
         putText(image, help[i], Point(fsize,h),
                 FONT_HERSHEY_SIMPLEX, .5, Color::yellow, 1, CV_AA);
     }
-    
+
     if (annotatingActions)
     {
         vector<string> actionList;
         actionList.push_back("");
         actionList.push_back("Actions:");
-        
+
         int header = actionList.size();
-        
+
         for (size_t i = 0; i < actions.size(); i++)
             actionList.push_back(" (" + std::to_string(i) + ") : " + actions.at(i));
-        
+
         int leftMargin = (characterWidth * fsize + margin * 2);
-        
+
         for (int i = 0, h = fsize; i < actionList.size(); i++, h += fsize)
         {
             if ((i-header) < 0)
@@ -390,13 +359,6 @@ void AnnotateProcess::helpHUD(Mat &image)
         }
     }
 }
-
-Point2f Geometry::centroid(const vector<Point2f> &corners)
-{
-    Moments mu = moments(corners);
-    return Point2f(mu.m10/mu.m00, mu.m01/mu.m00);
-}
-
 void AnnotateProcess::leftButtonDown(int x, int y, int flags)
 {
     if  (flags &  EVENT_FLAG_CTRLKEY  ||
@@ -459,7 +421,6 @@ void AnnotateProcess::leftButtonDown(int x, int y, int flags)
         mouseShift = Geometry::centroid(draw.area);
     }
 };
-
 void AnnotateProcess::mouseMove(int x, int y, int flags)
 {
     if  ( (flags &  EVENT_FLAG_CTRLKEY ||
@@ -474,38 +435,37 @@ void AnnotateProcess::mouseMove(int x, int y, int flags)
     }
     mousePos = Point2f(x,y);
 };
-
 void AnnotateProcess::keyboardInput(int key)
 {
     if (key == 'b' || key == 'B')
     {
         if (draw.area.empty())
         {
-			selection = -1;
-			if (!annotations[currentFrameN].empty())
-			{
-				bool deleted = false;
-				// remove the empty annotation first 
-				for (std::vector<Annotation>::iterator it = annotations[currentFrameN].begin();
-					it != annotations[currentFrameN].end();)
-				{
-					if (it->area.size() == 0)
-					{
-						deleted = true;
-						it = annotations[currentFrameN].erase(it);
-					}
-					else
-					{
-						++it;
-					}
-				}
-				// pop up the latest annotation
-				if (!deleted)
-				{
-					annotations[currentFrameN].pop_back();
-				}
+            selection = -1;
+            if (!annotations[currentFrameN].empty())
+            {
+                bool deleted = false;
+                // remove the empty annotation first
+                for (std::vector<Annotation>::iterator it = annotations[currentFrameN].begin();
+                     it != annotations[currentFrameN].end();)
+                {
+                    if (it->area.size() == 0)
+                    {
+                        deleted = true;
+                        it = annotations[currentFrameN].erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+                // pop up the latest annotation
+                if (!deleted)
+                {
+                    annotations[currentFrameN].pop_back();
+                }
 
-			}
+            }
         }
         if (draw.mode == AXIS_RECT && draw.area.size() == 4)
         {
@@ -566,7 +526,6 @@ void AnnotateProcess::keyboardInput(int key)
             draw.action = actions.at(i);
     }
 };
-
 void AnnotateProcess::remAnnotation()
 {
     if (selection >= 0 && selection < annotations[currentFrameN].size())
@@ -580,13 +539,12 @@ bool AnnotateProcess::isAnnotationSelected()
 {
     return (selection >= 0 && selection < annotations[currentFrameN].size());
 }
-
 void AnnotateProcess::newAnnotation()
 {
     if (acceptPolygon(draw.area, draw.mode))
     {
         Annotation tmp;
-		//Rect area = boundingRect(drawing);
+        //Rect area = boundingRect(drawing);
         if (selection < 0)
         {
             tmp.area = draw.area;
@@ -601,13 +559,12 @@ void AnnotateProcess::newAnnotation()
             annotations[currentFrameN][selection].area = draw.area;
             annotations[currentFrameN][selection].mode = draw.mode;
             annotations[currentFrameN][selection].action = draw.action;
-			//annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
+            //annotations[currentFrameN][selection].tracker = initTracker(currentFrame, area);
         }
         draw.area.clear();
         selection = -1;
     }
 }
-
 bool AnnotateProcess::readActionTypeFile(const string &filename, vector<string> &actions)
 {
     string line;
@@ -628,7 +585,54 @@ bool AnnotateProcess::readActionTypeFile(const string &filename, vector<string> 
     }
 }
 
+void Draw::displayPolygonInfo(cv::Mat &image,
+                              const string &info,
+                              const vector<Point2f> &pts,
+                              const Scalar &background,
+                              const Scalar &foreground)
+{
+    if (pts.size() > 0)
+    {
+        auto ref = std::min_element(pts.begin(), pts.end(),
+                                    [](const Point2f &p1, const Point2f &p2)
+                                    {
+                                        return p1.y < p2.y;
+                                    });
+        
+        rectangle(image, *ref - Point2f(0,10),
+                         *ref + Point2f(70,0),
+                         background, -1);
+        
+        putText(image, info, *ref - Point2f(0,2),
+                FONT_HERSHEY_SIMPLEX, .3, foreground, 1, CV_AA);
+    }
+}
+void Draw::displayAnnotation(cv::Mat &image,
+                             Annotation &ann,
+                             const Scalar &background,
+                             const Scalar &foreground,
+                             int thickness,
+                             bool close)
+{
+    displayPolygon(image, ann.area, background, thickness, close);
+    string info = ((ann.tracking)?"[T] ":"") + to_string(ann.ID) +
+                  ": " + ann.action;
+    
+    displayPolygonInfo(image, info, ann.area, background, foreground);
 
+}
+void Draw::displayPolygon(Mat &image, const vector<Point2f> &pts, const Scalar &color, int thickness, bool close)
+{
+    int i = 0;
+    for ( i = 0; i < ((int)pts.size() - 1); i++)
+    {
+        line(image, pts[i], pts[i + 1],
+             color, thickness, CV_AA );
+    }
+    if (close && pts.size() > 0 )
+        line(image, pts[i], pts[0],
+             color, thickness, CV_AA );
+}
 
 string ATTR::VERSION  = "version";
 string ATTR::FILENAME = "filename";
@@ -746,8 +750,6 @@ void XMLAnnotateProcess::write(const string &filename)
     file << doc;
     file.close();
 }
-
-
 /*
  * Convert string to the right encoding
  */
@@ -782,9 +784,6 @@ void XMLAnnotateProcess::write(const string &filename)
         pts.push_back(Point2f(atof(x.c_str()), atof(y.c_str())));
     }
 }
-
-
-
 void XMLAnnotateProcess::readSequenceMetadata(xml_node<>&sequence,
                                               size_t &sequenceID,
                                               size_t &frameCount,
@@ -798,7 +797,6 @@ void XMLAnnotateProcess::readSequenceMetadata(xml_node<>&sequence,
     width      = readAttribute<float>(sequence, ATTR::WIDTH);
     height     = readAttribute<float>(sequence, ATTR::HEIGHT);
 }
-
 void XMLAnnotateProcess::readSequenceFilenames(xml_node<> &sequence,
                                                vector<string> &filenames)
 {
@@ -809,7 +807,6 @@ void XMLAnnotateProcess::readSequenceFilenames(xml_node<> &sequence,
         filenames.push_back(readAttribute<string>(*frame, ATTR::FILENAME));
     }
 }
-
 size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
                                     vector<vector<Annotation>> &ann)
 {
@@ -844,24 +841,42 @@ size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
     }
     return maxID;
 }
-
-size_t XMLAnnotateProcess::parse(const string &filename, vector<vector<Annotation>> &ann)
+void XMLAnnotateProcess::readActions(xml_node<> &actions, vector<string> &actns)
 {
-    
-    ifstream file(filename);
-    vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-    buffer.push_back('\0');
-    ann.clear();
-    xml_document<> doc;
-    xml_node<>* sequence;
-    doc.parse<0>(&buffer[0]);
-    sequence = doc.first_node(NODE::SEQ.c_str());
-
-    return readSequenceAnnotations(*sequence, ann);
+    actns.clear();
+    for (xml_node<> *action = actions.first_node(NODE::ACTION.c_str());
+         action;
+         action = action->next_sibling())
+    {
+        actns.push_back(action->value());
+    }
 }
 
-size_t XMLAnnotateProcess::read(const string &filename, int sequenceID)
+size_t XMLAnnotateProcess::read(const string &filename)
 {
-    draw.area.clear();
-    return parse(filename, annotations);
+    xml_document<> doc;
+    readXML(filename, doc);
+
+    vector<string> actns;
+    xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
+    readActions(*aNode, actns);
+
+    setActions(actns);
+
+    xml_node<>* sequence = doc.first_node(NODE::SEQ.c_str());
+    for (size_t i = 0; i < ID; i++)
+        sequence = sequence->next_sibling();
+
+    size_t ID, frameCount;
+    string TYPE;
+
+    readSequenceMetadata(*sequence, ID, frameCount, TYPE, width, height);
+
+    vector<vector<Annotation>> ann;
+    size_t maxID = readSequenceAnnotations(*sequence, ann);
+
+    setAnnotations(ann);
+
+
+    return maxID;
 }

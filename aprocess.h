@@ -84,6 +84,7 @@ public:
     static bool isCameraID(const string &s);
     static bool filenames(const string &folder, vector<string> &filenames);
     static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
+    static Ptr<Input> create(const string &sequence, vector<string> &filenames, const Size sz = Size(-1, -1));
     static string  findInputGroundTruth(const string &sequence, const string &defaultname);
 };
 
@@ -158,23 +159,30 @@ protected:
     Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
     void helpHUD(Mat &image);
 
-
-
     Mat currentFrame;
     long currentFrameN;
 	int  totalNumberOfFrames;
 
+    /*
+     * used for annotation selection 
+     * and moving
+     */
     Point2f mousePos;
     Point2f mouseShift;
-
-    int thickness;
-
     int selection;
+
+    /*
+     * used for drawing
+     */
+    int thickness;
     float ratio;
     bool showHelp;
+
+    /*
+     * options
+     */
     bool tracking;
 	bool annotatingActions;
-	bool initialized;
 
 
 public:
@@ -189,11 +197,9 @@ public:
 
 
 	vector<vector<Annotation>> annotations;
-	vector<std::string> actions;
-    //vector<Point2f> drawing;
-
     Annotation draw;
 
+    vector<std::string> actions;
 
 
     /*
@@ -214,15 +220,15 @@ public:
                       totalNumberOfFrames(totalFrameN),
                       mousePos(-1,-1),
                       mouseShift(-1,-1),
-                      thickness(2),
                       selection(-1),
+                      thickness(2),
                       ratio(ratioYX),
                       showHelp(true),
                       tracking(track),
 		              annotatingActions(action),
-                      initialized(false),
                       annotations(totalFrameN),
-                      draw()
+                      draw(),
+                      actions()
 
     {
         draw.mode = method;
@@ -252,6 +258,8 @@ public:
             draw.action = actions[0];
             annotatingActions = true;
         }
+        else
+            annotatingActions = false;
     }
     void setNumberOfFrames(int frameCount)
     {
@@ -305,12 +313,9 @@ public:
 		frame.copyTo(output);
 		frame.copyTo(currentFrame);
 
-
 		if (showHelp)
 			helpHUD(output);
 
-
-		// display the existed annotation
 		for (int i = 0; (i < annotations[currentFrameN].size()) &&
                         (currentFrameN < annotations.size()); i++)
 		{
@@ -318,20 +323,13 @@ public:
                                     Color::yellow, Color::red, thickness, true);
 		}
 
+        draw.ID = (isAnnotationSelected())?
+                    annotations[currentFrameN][selection].ID :
+                    currentAnnotationID;
 
         Draw::displayAnnotation(output, draw,
                                 Color::red,
                                 Color::yellow, thickness, draw.mode != POLY);
-
-//		// display the current drawing
-//		Draw::displayPolygon(output, drawing, Color::red, thickness, mode != POLY);
-//        
-//        string currentID = (isAnnotationSelected())?
-//            to_string(annotations[currentFrameN][selection].ID) :
-//            to_string(currentAnnotationID);
-//        
-//        string info =  currentID + ": " + currentAction;
-//        Draw::displayPolygonInfo(output, info, drawing, Color::red, Color::yellow);
 
 		if (draw.mode == POLY)
 		{
@@ -360,7 +358,7 @@ public:
 				vector<Point2f> _rRect(4);
 				_rRect[0] = draw.area.back();
 				_rRect[1] = draw.area.front();
-				Geometry::getARect(mousePos, ratio, _rRect[0], _rRect[1],
+				Geometry::getRRect(mousePos, ratio, _rRect[0], _rRect[1],
                          _rRect[2], _rRect[3]);
 
 				for (size_t i = 0; i < _rRect.size(); i++)
@@ -506,6 +504,15 @@ class XMLAnnotateProcess: public AnnotateProcess
      * x1,y1,x2,y2,x3,y3,....xn,yn
      */
     static void parseLocation(const string &loc, vector<Point2f> &pts);
+
+    static void readXML(const string &filename, xml_document<> &doc)
+    {
+        ifstream file(filename);
+        vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+        buffer.push_back('\0');
+        doc.parse<0>(&buffer[0]);
+        file.close();
+    }
     
 public:
     
@@ -537,16 +544,15 @@ public:
          input(_input), width(inputWidth), height(inputHeight), ID(sequenceID)
     {}
 
+    static void readActions(xml_node<> &actions, vector<string> &actns);
+
     static  void writeHeader(xml_document<> &doc);
     static  void writeActions(xml_document<> &doc, const vector<string> &actions);
     void writeSequence(xml_document<> &doc);
     void write(const string &filename);
 
     
-    size_t read(const string &filename, int sequenceID);
-
-    static size_t parse(const string &filename,
-                     vector<vector<Annotation>> &annotation);
+    size_t read(const string &filename);
 
 
     static void readSequenceMetadata(xml_node<> &sequence,
