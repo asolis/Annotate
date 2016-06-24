@@ -231,7 +231,9 @@ void InputFactory::load(CommandLineParserExt &parser,
     xml_node<> *sequence = doc.first_node(NODE::SEQ.c_str());
     
     size_t maxID = 0;
-    for (size_t i = 0 ; sequence; sequence = sequence->next_sibling(), i++)
+    for (size_t i = 0 ;
+         sequence && i < parser.n_positional_args();
+         sequence = sequence->next_sibling(), i++)
     {
         vector<string> filenames;
         int width, height;
@@ -784,6 +786,12 @@ void AnnotateProcess::keyboardInput(int key)
     {
         newAnnotation();
     }
+    
+    if (key == 't' || key == 'T')
+    {
+        forceTracking();
+    }
+    
 
     if (key == 'm' || key == 'M')
     {
@@ -805,11 +813,26 @@ void AnnotateProcess::keyboardInput(int key)
             draw.action = actions.at(i);
     }
 };
+
+void AnnotateProcess::removeIDFromFrameNumber(int ID, size_t frameNumber)
+{
+    for (size_t i = frameNumber; i < annotations.size(); i++)
+    {
+        size_t found = -1;
+        for (size_t pos = 0; pos < annotations[i].size(); pos++)
+            found = (annotations[i][pos].ID == ID)? pos: found;
+        
+        if (found != -1)
+            annotations[i].erase(annotations[i].begin() + found);
+    }
+}
+
 void AnnotateProcess::remAnnotation()
 {
     if (selection >= 0 && selection < annotations[currentFrameN].size())
     {
-        annotations[currentFrameN].erase(annotations[currentFrameN].begin() + selection);
+        int _id = annotations[currentFrameN][selection].ID;
+        removeIDFromFrameNumber(_id, currentFrameN);
     }
     draw.area.clear();
     selection = -1;
@@ -817,6 +840,27 @@ void AnnotateProcess::remAnnotation()
 bool AnnotateProcess::isAnnotationSelected()
 {
     return (selection >= 0 && selection < annotations[currentFrameN].size());
+}
+
+
+void AnnotateProcess::forceTracking()
+{
+    if (selection >= 0 && selection < annotations[currentFrameN].size() )
+    {
+        annotations[currentFrameN][selection].area = draw.area;
+        annotations[currentFrameN][selection].mode = draw.mode;
+        annotations[currentFrameN][selection].action = draw.action;
+        annotations[currentFrameN][selection].tracking = true;
+        
+        int _id = annotations[currentFrameN][selection].ID;
+        removeIDFromFrameNumber(_id, currentFrameN + 1);
+        
+        Rect area = boundingRect(draw.area);
+        Ptr<SKCFDCF> _t = initTracker(currentFrame, area);
+        trackers.insert(pair<int,Ptr<SKCFDCF>>(_id, _t));
+    }
+    draw.area.clear();
+    selection = -1;
 }
 void AnnotateProcess::newAnnotation()
 {
@@ -844,7 +888,10 @@ void AnnotateProcess::newAnnotation()
             annotations[currentFrameN][selection].action = draw.action;
             
             int _id = annotations[currentFrameN][selection].ID;
-            trackers[_id]->initialize(currentFrame, boundingRect(draw.area));
+            if (trackers.find(_id) != trackers.end())
+            {
+                trackers[_id]->initialize(currentFrame, boundingRect(draw.area));
+            }
         }
         
         

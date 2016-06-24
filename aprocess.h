@@ -171,7 +171,9 @@ protected:
 
     Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
     void helpHUD(Mat &image);
-
+    void removeIDFromFrameNumber(int ID, size_t frameNumber);
+    void forceTracking();
+    
     Mat currentFrame;
     long currentFrameN;
 	int  totalNumberOfFrames;
