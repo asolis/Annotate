@@ -216,13 +216,13 @@ int InputFactory::getMode(CommandLineParserExt &parser)
 }
 
 void InputFactory::load(CommandLineParserExt &parser,
+          vector<string> &actns,
           vector<Ptr<Input>> &inputs,
           vector<Ptr<XMLAnnotateProcess>> &processes)
 {
     xml_document<> doc;
     XMLAnnotateProcess::readXML(parser.get<string>("i"), doc);
     
-    vector<string> actns;
     xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
     XMLAnnotateProcess::readActions(*aNode, actns);
     
@@ -266,7 +266,9 @@ void InputFactory::initialize(CommandLineParserExt &parser,
                 vector<Ptr<Input>> &inputs,
                 vector<Ptr<XMLAnnotateProcess>> &processes)
 {
-    
+    if (parser.has("a"))
+        AnnotateProcess::readActionTypeFile(parser.get<string>("a"), actions);
+
     
     /** create the list of inputs and annotation process **/
     for (size_t i = 0; i < parser.n_positional_args(); i++)

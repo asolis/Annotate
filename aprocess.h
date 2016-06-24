@@ -90,17 +90,14 @@ public:
     static int getMode(CommandLineParserExt &parser);
     
     static void load(CommandLineParserExt &parser,
-              vector<Ptr<Input>> &inputs,
+                     vector<string> &actions,
+                     vector<Ptr<Input>> &inputs,
                      vector<Ptr<XMLAnnotateProcess>> &processes);
     
     static void initialize(CommandLineParserExt &parser,
                     vector<string> &actions,
                     vector<Ptr<Input>> &inputs,
                     vector<Ptr<XMLAnnotateProcess>> &processes);
-    
-    
-    
-    
     
     static void write(const string &filename,
                vector<string> &actions,

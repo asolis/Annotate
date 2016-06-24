@@ -68,12 +68,9 @@ int main(int argc, const char * argv[])
     size_t _startFrame  = parser.get<int>("s");
 
     vector<string> actions;
-    if (parser.has("a"))
-        AnnotateProcess::readActionTypeFile(parser.get<string>("a"),
-                                            actions);
 
     if (parser.has("i"))
-        InputFactory::load(parser, _inputs, _process);
+        InputFactory::load(parser, actions, _inputs, _process);
     else
         InputFactory::initialize(parser, actions, _inputs,  _process);
 
