@@ -85,7 +85,6 @@ public:
     static bool filenames(const string &folder, vector<string> &filenames);
     static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
     static Ptr<Input> create(const string &sequence, vector<string> &filenames, const Size sz = Size(-1, -1));
-    static string  findInputGroundTruth(const string &sequence, const string &defaultname);
     
     static int getMode(CommandLineParserExt &parser);
     
@@ -167,7 +166,7 @@ protected:
     bool  isAnnotationSelected();
     int   findAnnotationIndexContaining(const Point2f &pt);
     void  swapPolygon(int i);
-
+    void  clearSelection();
 
     Ptr<SKCFDCF> initTracker(Mat frame, Rect area);
     void helpHUD(Mat &image);
@@ -364,13 +363,8 @@ class XMLAnnotateProcess: public AnnotateProcess
      * x1,y1,x2,y2,x3,y3,....xn,yn
      */
     static void parseLocation(const string &loc, vector<Point2f> &pts);
-
-    
     
 public:
-    
-
-    
     string input;
     int width;
     int height;
@@ -419,14 +413,7 @@ public:
     static size_t readSequenceAnnotations(xml_node<> &sequence,
                                         vector<vector<Annotation>> &ann);
 
-    static void readXML(const string &filename, xml_document<> &doc)
-    {
-        ifstream file(filename);
-        vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-        buffer.push_back('\0');
-        doc.parse<0>(&buffer[0]);
-        file.close();
-    }
+    static void readXML(const string &filename, xml_document<> &doc);
     
 };
 #endif

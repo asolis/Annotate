@@ -246,7 +246,6 @@ void InputFactory::load(CommandLineParserExt &parser,
         Ptr<Input> input = InputFactory::create(parser.get<string>(i), filenames, Size(width, height));
         inputs.push_back(input);
         
-        InputFactory::create(parser.get<string>(i), filenames, Size(width, height));
         
         Ptr<XMLAnnotateProcess> process = new XMLAnnotateProcess(parser.get<string>(i),
                                                                  width,
@@ -320,39 +319,11 @@ void InputFactory::write(const string &filename,
 }
 
 
-
-string  InputFactory::findInputGroundTruth(const string &sequence, const string &defaultname)
+void AnnotateProcess::clearSelection()
 {
-    string basename;
-    if (isVideoFile(sequence))
-    {
-        viva::Files::getBasename(sequence, basename);
-    }
-    if (isWebFile(sequence))
-    {
-        //TODO
-    }
-    if (isStringSequence(sequence))
-    {
-        viva::Files::getBasename(sequence, basename);
-    }
-    if (isCameraID(sequence))
-    {
-        //TODO
-    }
-
-    if (isFolderSequence(sequence))
-    {
-        if (sequence.back() != viva::Files::PATH_SEPARATOR.front())
-            basename = sequence + viva::Files::PATH_SEPARATOR;
-        else
-            basename = sequence;
-    }
-
-    return basename + defaultname;
+    draw.area.clear();
+    selection = -1;
 }
-
-
 void AnnotateProcess::setAnnotationAspectRation(float ratioYX)
 {
     ratio = ratioYX;
@@ -583,6 +554,7 @@ void AnnotateProcess::helpHUD(Mat &image)
     help.push_back(" (n) : Next frame");
     help.push_back(" (p) : Previous frame");
     help.push_back(" (a) : Accept annotation");
+    help.push_back(" (t) : Force start tracking");
     help.push_back(" (d) : Delete annotation");
     help.push_back(" (b) : Remove last point/annotation");
     help.push_back(" (c) : Clear all annotations");
@@ -718,11 +690,17 @@ void AnnotateProcess::mouseMove(int x, int y, int flags)
 };
 void AnnotateProcess::keyboardInput(int key)
 {
+    if (key == Keys::SPACE)
+    {
+        selection  = -1;
+        draw.area.clear();
+    }
     if (key == 'b' || key == 'B')
     {
         if (draw.area.empty())
         {
-            selection = -1;
+            clearSelection();
+            
             if (!annotations[currentFrameN].empty())
             {
                 bool deleted = false;
@@ -834,8 +812,7 @@ void AnnotateProcess::remAnnotation()
         int _id = annotations[currentFrameN][selection].ID;
         removeIDFromFrameNumber(_id, currentFrameN);
     }
-    draw.area.clear();
-    selection = -1;
+    clearSelection();
 }
 bool AnnotateProcess::isAnnotationSelected()
 {
@@ -859,8 +836,7 @@ void AnnotateProcess::forceTracking()
         Ptr<SKCFDCF> _t = initTracker(currentFrame, area);
         trackers.insert(pair<int,Ptr<SKCFDCF>>(_id, _t));
     }
-    draw.area.clear();
-    selection = -1;
+    clearSelection();
 }
 void AnnotateProcess::newAnnotation()
 {
@@ -893,12 +869,7 @@ void AnnotateProcess::newAnnotation()
                 trackers[_id]->initialize(currentFrame, boundingRect(draw.area));
             }
         }
-        
-        
-        
-        
-        draw.area.clear();
-        selection = -1;
+        clearSelection();
         
         
     }
@@ -1196,7 +1167,14 @@ void XMLAnnotateProcess::readActions(xml_node<> &actions, vector<string> &actns)
         actns.push_back(action->value());
     }
 }
-
+void XMLAnnotateProcess::readXML(const string &filename, xml_document<> &doc)
+{
+    ifstream file(filename);
+    vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    doc.parse<0>(&buffer[0]);
+    file.close();
+}
 
 size_t XMLAnnotateProcess::read(xml_document<> &doc)
 {

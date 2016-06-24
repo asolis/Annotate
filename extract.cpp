@@ -31,6 +31,7 @@
 
  **************************************************************************************************
  **************************************************************************************************/
+#include "clp.hpp"
 #include "aprocess.h"
 
 using namespace viva;
@@ -41,42 +42,49 @@ int main(int argc, const char * argv[])
 
 	const String keys =
 		"{help h            |                | print this message}"
-		"{@sequence         |                | url, file, folder, sequence}"
-		"{g groundtruth     |                | ground truth filename }"
-		"{x xml groundtruth	|				 | xml ground truth filename}"
+		"{@sequences        |                | folder containing the sequence}"
+		"{i input           |                | input annotated file}"
+        "{s                 |0               | sequence id (default first sequence in xml)}"
 		"{o output          |output          | folder name for output}"
 		"{p pattern         |%06d%03d.png    | output filename pattern}"
 		"{m masked          |                | masking output images if not axis align}"
-		"{s                 |                | start sequence paused}"
     ;
 
-    CommandLineParser parser(argc, argv, keys);
-
-    if (parser.has("h"))
+    CommandLineParserExt parser(argc, argv, keys);
+    cout << parser.has("i") << endl;
+    if (!parser.has("i") || parser.has("h"))
+    {
         parser.printMessage();
-
+        return 0;
+    }
+    
+    xml_document<> doc;
+    XMLAnnotateProcess::readXML(parser.get<string>("i"), doc);
+    vector<string> actns;
+    xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
+    XMLAnnotateProcess::readActions(*aNode, actns);
+    
+    xml_node<> *sequence = doc.first_node(NODE::SEQ.c_str());
+    for (size_t skeep = 0; skeep < parser.get<int>("id"); skeep++)
+        sequence = sequence->next_sibling();
+    
+    vector<string> filenames;
+    int width, height;
+    string type;
+    size_t sID, cFC;
+    
+    XMLAnnotateProcess::readSequenceMetadata(*sequence, sID, cFC, type, width, height);
+    XMLAnnotateProcess::readSequenceFilenames(*sequence, filenames);
+    Ptr<Input> input = InputFactory::create(parser.get<string>(0), filenames, Size(width, height));
     vector<vector<Annotation>> _gtruth;
-    string sequence = parser.get<string>(0);
+    XMLAnnotateProcess::readSequenceAnnotations(*sequence, _gtruth);
+    
 
-    Ptr<Input> input = InputFactory::create(sequence, Size(-1,-1));
-    string fullname  = InputFactory::findInputGroundTruth(sequence,
-                                                          "groundtruth.txt");
-
+    
     string gfile = parser.get<string>("g");
 	string xmlgfile = parser.get<string>("x");
 
-    if (viva::Files::isFile(fullname) && !parser.has("g") && !parser.has("x"))
-    {
-        CSVAnnotateProcess::parse(fullname, _gtruth);
-    }
-    else if (parser.has("g") && viva::Files::isFile(gfile))
-    {
-        CSVAnnotateProcess::parse(gfile, _gtruth);
-    }	
-	else if (parser.has("x") && viva::Files::isFile(xmlgfile))
-	{
-		XMLAnnotateProcess::parse(xmlgfile, _gtruth);
-	}
+   
 
     string outputFolder = parser.get<string>("o");
     if (!viva::Files::isDir(outputFolder))
@@ -139,8 +147,6 @@ int main(int argc, const char * argv[])
     Processor processor;
     processor.setInput(input);
     processor.setProcess(processFrame);
-    if (parser.has("s"))
-        processor.startPaused();
     processor.listenToMouseEvents();
     processor.listenToKeyboardEvents();
     processor.run();
