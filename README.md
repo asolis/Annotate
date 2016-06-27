@@ -22,4 +22,4 @@ For more detailed information and examples of how to use reefer to the project's
 ## Contributors 
 
 Thanks to:   
-1. Dongfeng Gu - Adding write/read support for simplified XML version of [viper](http://viper-toolkit.sourceforge.net/docs/file/) format. 
+1. Dongfeng Gu - Adding write/read support for simplified XML version format. 

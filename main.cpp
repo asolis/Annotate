@@ -52,7 +52,7 @@ int main(int argc, const char * argv[])
         "{t track           |on         | will generate a prediction position for the next frame}"
 		"{i import          |           | import xml file}"
 		"{a actionType      |           | import action file with an action per line}"
-        "{s skeep           |0          | skeep number of frames}"
+        "{s skip            |0          | skip number of frames}"
 		"{o output          |           | output xml file}"
     ;
 

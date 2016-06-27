@@ -79,13 +79,11 @@ int main(int argc, const char * argv[])
     vector<vector<Annotation>> _gtruth;
     XMLAnnotateProcess::readSequenceAnnotations(*sequence, _gtruth);
     
-
     
     string gfile = parser.get<string>("g");
 	string xmlgfile = parser.get<string>("x");
 
    
-
     string outputFolder = parser.get<string>("o");
     if (!viva::Files::isDir(outputFolder))
         viva::Files::makeDir(outputFolder);
