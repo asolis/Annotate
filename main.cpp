@@ -76,10 +76,13 @@ int main(int argc, const char * argv[])
 
     vector<Ptr<ProcessFrame>> proc (_process.begin(), _process.end());
     
+    Ptr<ProcessFrame> matching = new MatchingProcess(_process);
+    
 	MultipleProcess processor;
     processor.setInput(_inputs);
 	processor.setStartFrame(_startFrame);
 	processor.setProcess(proc);
+    processor.setMachingProcess(matching);
     processor.listenToMouseEvents();
     processor.listenToKeyboardEvents();
     processor.run();

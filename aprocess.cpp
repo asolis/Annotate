@@ -746,8 +746,12 @@ void AnnotateProcess::keyboardInput(int key)
         draw.area.clear();
 
         while (!annotations[currentFrameN].empty())
+        {
+            int id = annotations[currentFrameN].back().ID;
             annotations[currentFrameN].pop_back();
-
+            previews.erase(id);
+            
+        }
     }
     if (key == 'h' || key == 'H')
     {
@@ -790,6 +794,8 @@ void AnnotateProcess::keyboardInput(int key)
         if (key == ('0' + i))
             draw.action = actions.at(i);
     }
+
+    
 };
 
 void AnnotateProcess::removeIDFromFrameNumber(int ID, size_t frameNumber)
@@ -805,12 +811,23 @@ void AnnotateProcess::removeIDFromFrameNumber(int ID, size_t frameNumber)
     }
 }
 
+bool AnnotateProcess::annotationExists(int ID, int frameN)
+{
+    if (frameN >= 0 && frameN <= totalNumberOfFrames)
+        for (size_t i = 0; i < annotations[frameN].size(); i++)
+            if  (annotations[frameN][i].ID == ID)
+                return true;
+    return false;
+}
+
 void AnnotateProcess::remAnnotation()
 {
     if (selection >= 0 && selection < annotations[currentFrameN].size())
     {
         int _id = annotations[currentFrameN][selection].ID;
         removeIDFromFrameNumber(_id, currentFrameN);
+        if (!annotationExists(_id, currentFrameN - 1))
+            previews.erase(_id);
     }
     clearSelection();
 }
@@ -838,6 +855,17 @@ void AnnotateProcess::forceTracking()
     }
     clearSelection();
 }
+void AnnotateProcess::createPreview(const Annotation &ann, const Mat &image, size_t frameNumber)
+{
+    if (previews.find(ann.ID) == previews.end())
+    {
+        AnnotationPreview preview;
+        preview.ID = ann.ID;
+        preview.fromFrameN = frameNumber;
+        resize(image(boundingRect(ann.area)), preview.preview, Size(64,80));
+        previews.insert(pair<int,AnnotationPreview>(preview.ID, preview));
+    }
+}
 void AnnotateProcess::newAnnotation()
 {
     if (acceptPolygon(draw.area, draw.mode))
@@ -856,6 +884,8 @@ void AnnotateProcess::newAnnotation()
             Rect area = boundingRect(draw.area);
             Ptr<SKCFDCF> _t = initTracker(currentFrame, area);
             trackers.insert(pair<int,Ptr<SKCFDCF>>(tmp.ID, _t));
+            
+            createPreview(tmp, currentFrame, currentFrameN);
         }
         else if (selection >= 0 && selection < annotations[currentFrameN].size() )
         {
@@ -892,6 +922,22 @@ bool AnnotateProcess::readActionTypeFile(const string &filename, vector<string> 
         cout << "Unable to open file: " + filename << endl;
         return false;
     }
+}
+
+void Draw::drawText(Mat &img,
+                    const string &text,
+                    const Scalar &color,
+                    const Point &textOrg,
+                    double fontScale,
+                    int thickness)
+
+{
+    int baseline=0;
+    Size textSize = getTextSize(text, FONT_HERSHEY_SIMPLEX,
+                                fontScale, thickness, &baseline);
+    
+    cv::putText(img, text, textOrg + Point(0, textSize.height), FONT_HERSHEY_SIMPLEX, fontScale,
+                color, thickness, CV_AA);
 }
 
 void Draw::displayPolygonInfo(cv::Mat &image,
@@ -1062,7 +1108,7 @@ void XMLAnnotateProcess::write(const string &filename)
 /*
  * Convert string to the right encoding
  */
- char *XMLAnnotateProcess::toChar(xml_document<> &doc, const string &name)
+char *XMLAnnotateProcess::toChar(xml_document<> &doc, const string &name)
 {
     return doc.allocate_string(name.c_str());
 }

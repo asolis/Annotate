@@ -64,6 +64,7 @@ struct Color
     const static Scalar teal;
     const static Scalar orange;
 };
+
 struct Annotation
 {
     int ID;
@@ -73,7 +74,18 @@ struct Annotation
     vector<Point2f> area;
     
 };
+
+
+struct AnnotationPreview
+{
+    int ID;
+    int fromFrameN;
+    Mat preview;
+};
+
+
 class XMLAnnotateProcess;
+
 class InputFactory
 {
 public:
@@ -103,6 +115,7 @@ public:
                       vector<Ptr<XMLAnnotateProcess>> &processes);
     
 };
+
 class Draw
 {
 public:
@@ -124,7 +137,20 @@ public:
                                    const vector<Point2f> &pts,
                                    const Scalar &background = Color::yellow,
                                    const Scalar &foreground = Color::red);
+    
+    static void drawText(Mat &img,
+                         const string &text,
+                         const Scalar &color,
+                         const Point &textOrg,
+                         double fontScale,
+                         int thickness);
+    
+    static void drawRectangle(Mat &img, const Rect &rect, const Scalar &color)
+    {
+        rectangle(img, rect.tl(), rect.br(), color, CV_FILLED);
+    }
 };
+
 class Geometry
 {
 public:
@@ -159,6 +185,7 @@ public:
      */
     static Point2f vectorPerpendicularToSegment(const Point2f &s, const Point2f &e);
 };
+
 class AnnotateProcess : public ProcessFrame
 {
 protected:
@@ -172,11 +199,13 @@ protected:
     void helpHUD(Mat &image);
     void removeIDFromFrameNumber(int ID, size_t frameNumber);
     void forceTracking();
-    
+
+public:
     Mat currentFrame;
     long currentFrameN;
 	int  totalNumberOfFrames;
-
+    
+protected:
     /*
      * used for annotation selection 
      * and moving
@@ -216,6 +245,8 @@ public:
     vector<std::string> actions;
 
     map<int, Ptr<SKCFDCF>> trackers;
+    map<int, AnnotationPreview> previews;
+    
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
      *                  a negative value will remove any ratio constraint.
@@ -243,7 +274,8 @@ public:
                       annotations(totalFrameN),
                       draw(),
                       actions(),
-                      trackers()
+                      trackers(),
+                      previews()
 
     {
         draw.mode = method;
@@ -286,10 +318,15 @@ public:
     virtual void remAnnotation();
 
     virtual void newAnnotation();
+    
+    virtual void createPreview(const Annotation &ann, const Mat &image, size_t frameNumber);
 
     static bool readActionTypeFile(const string &filename,
                                    vector<string> &actions);
+    
+    bool annotationExists(int ID, int frameN);
 };
+
 struct ATTR
 {
     static string VERSION;
@@ -310,6 +347,7 @@ struct ATTR
     static string T_FOLDER;
     static string T_FILE;
 };
+
 struct NODE
 {
     static string SEQ;
@@ -321,6 +359,7 @@ struct NODE
     static string MATCHING;
     static string MATCH;
 };
+
 class XMLAnnotateProcess: public AnnotateProcess
 {
     /*
@@ -370,6 +409,10 @@ public:
     int height;
     int ID;
     
+    
+    
+    
+    
     /*
      * @param ratioYX = the ratio between the rectangular selection. computed as height/width.
      *                  a negative value will remove any ratio constraint.
@@ -390,15 +433,14 @@ public:
         : AnnotateProcess(ratioYX, method, track, action, totalFrameN),
          input(_input), width(inputWidth), height(inputHeight), ID(sequenceID)
     {}
-
+    
+    
     static void readActions(xml_node<> &actions, vector<string> &actns);
-
     static  void writeHeader(xml_document<> &doc);
     static  void writeActions(xml_document<> &doc, const vector<string> &actions);
     void writeSequence(xml_document<> &doc);
     void write(const string &filename);
 
-    
     size_t read(const string &filename);
     size_t read(xml_document<> &doc);
 
@@ -412,8 +454,109 @@ public:
                                       vector<string> &filenames);
     static size_t readSequenceAnnotations(xml_node<> &sequence,
                                         vector<vector<Annotation>> &ann);
-
     static void readXML(const string &filename, xml_document<> &doc);
     
 };
+
+
+
+
+
+class MatchingProcess: public ProcessFrame
+{
+    
+    int _cols = 64;
+    int _rows = 80;
+    int _padd = 2;
+    int _header = 12;
+    int maxAnnotations = 15;
+    
+    
+public:
+    vector<Ptr<XMLAnnotateProcess>> process;
+    
+    MatchingProcess(const vector<Ptr<XMLAnnotateProcess>> &p)
+            :process(p)
+    {}
+    
+    virtual ~MatchingProcess(){}
+    
+    
+    virtual void printPreviews(size_t index,  Mat &img)
+    {
+        int count = 0;
+        
+        
+        for (map<int, AnnotationPreview>::iterator it = process[index]->previews.begin();
+             it != process[index]->previews.end() && count < maxAnnotations;
+             it++, count++)
+            
+            
+        {
+            int startCols = count * (_cols + _padd);
+            int endCols   = startCols + _cols;
+            
+            int startRow  = index * (_rows + _padd + _header);
+            int endRow    = startRow + _rows;
+            
+            int startText = index * (_rows + _padd);
+            
+            
+            if (process[index]->currentFrameN >= it->second.fromFrameN)
+            {
+                it->second.preview.copyTo(img(Range(startRow, endRow),
+                                              Range(startCols, endCols)));
+                Draw::drawRectangle(img, Rect(startCols, startText, _cols, _header),
+                                    Color::yellow);
+                Draw::drawText(img, "ID: "+to_string(it->first),
+                               Color::red, Point(startCols, startText + 2), .3, 1);
+            }
+        }
+  
+    }
+    
+    
+    virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
+    {
+        Mat tmp (process.size() * 100,
+                 maxAnnotations * (_cols + _padd), CV_8UC3, Scalar::all(255));
+        
+        for (size_t i = 0; i < process.size(); i++)
+        {
+            printPreviews(i, tmp);
+        }
+        if (tmp.rows * tmp.cols > 0)
+            imshow("Annotation Preview", tmp);
+       
+    };
+    
+    /**
+     *Inherited from MouseListener. Check MouseListener class for details
+     */
+    virtual void mouseInput(int event, int x, int y, int flags){};
+    /**
+     *Inherited from MouseListener. Check MouseListener class for details
+     */
+    virtual void leftButtonDown(int x, int y, int flags){};
+    /**
+     *Inherited from MouseListener. Check MouseListener class for details
+     */
+    virtual void rightButtonDown(int x, int y, int flags){};
+    /**
+     *Inherited from MouseListener. Check MouseListener class for details
+     */
+    virtual void middleButtonDown(int x, int y, int flags){};
+    /**
+     *Inherited from MouseListener. Check MouseListener class for details
+     */
+    virtual void mouseMove(int x, int y, int flags){};
+    
+    /**
+     * Inherited from KeyboardListerner. Check KeyboardListener class for details.
+     */
+    virtual void keyboardInput(int key){};
+    
+};
+
+
 #endif
