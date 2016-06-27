@@ -711,7 +711,10 @@ void AnnotateProcess::keyboardInput(int key)
                     if (it->area.size() == 0)
                     {
                         deleted = true;
+                        int id = it->ID;
                         it = annotations[currentFrameN].erase(it);
+                        if (!annotationExists(id, currentFrameN - 1))
+                            previews.erase(id);
                     }
                     else
                     {
@@ -721,7 +724,10 @@ void AnnotateProcess::keyboardInput(int key)
                 // pop up the latest annotation
                 if (!deleted)
                 {
+                    int id =  annotations[currentFrameN].back().ID;
                     annotations[currentFrameN].pop_back();
+                    if (!annotationExists(id, currentFrameN - 1))
+                        previews.erase(id);
                 }
 
             }
