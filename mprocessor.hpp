@@ -56,6 +56,7 @@ private:
     vector<Ptr<ProcessFrame>> _process;
     vector<Ptr<Output>>  _output;
     string _windowName;
+    string _matchinName;
 
     bool _showInput;
     bool _showOutput;
@@ -80,6 +81,7 @@ public:
     _process(),
     _output(),
     _windowName("Sequence"),
+    _matchinName("Annotations Preview"),
     _showInput(false),
     _showOutput(true),
     _mListener(false),

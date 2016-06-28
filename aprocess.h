@@ -102,6 +102,7 @@ public:
     
     static void load(CommandLineParserExt &parser,
                      vector<string> &actions,
+                     vector<pair<Point,Point>> &matches,
                      vector<Ptr<Input>> &inputs,
                      vector<Ptr<XMLAnnotateProcess>> &processes);
     
@@ -111,7 +112,8 @@ public:
                     vector<Ptr<XMLAnnotateProcess>> &processes);
     
     static void write(const string &filename,
-               vector<string> &actions,
+                      vector<string> &actions,
+                      vector<pair<Point,Point>> &matches,
                       vector<Ptr<XMLAnnotateProcess>> &processes);
     
 };
@@ -145,9 +147,9 @@ public:
                          double fontScale,
                          int thickness);
     
-    static void drawRectangle(Mat &img, const Rect &rect, const Scalar &color)
+    static void drawRectangle(Mat &img, const Rect &rect, const Scalar &color, int mode = CV_FILLED)
     {
-        rectangle(img, rect.tl(), rect.br(), color, CV_FILLED);
+        rectangle(img, rect.tl(), rect.br(), color, mode);
     }
 };
 
@@ -339,7 +341,10 @@ struct ATTR
     static string ACTION;
     static string TARGET1;
     static string TARGET2;
-
+    static string FROM_SEQ;
+    static string TO_SEQ;
+    static string FROM_ID;
+    static string TO_ID;
 
     static string WIDTH;
     static string HEIGHT;
@@ -435,9 +440,11 @@ public:
     {}
     
     
-    static void readActions(xml_node<> &actions, vector<string> &actns);
+    static  void readActions(xml_node<> &actions, vector<string> &actns);
+    static  void readMatching(xml_node<> &matching, vector<pair<Point,Point>> &matchs);
     static  void writeHeader(xml_document<> &doc);
     static  void writeActions(xml_document<> &doc, const vector<string> &actions);
+    static  void writeMatching(xml_document<> &doc, const vector<pair<Point,Point>> &matchs);
     void writeSequence(xml_document<> &doc);
     void write(const string &filename);
 
@@ -460,75 +467,185 @@ public:
 
 
 
-
-
 class MatchingProcess: public ProcessFrame
 {
+    enum {
+        EMPTY = 0,
+        FIRST = 1,
+        SECOND = 2
+    };
     
-    int _cols = 64;
-    int _rows = 80;
-    int _padd = 2;
-    int _header = 12;
-    int maxAnnotations = 15;
     
+    /**
+     * board drawing sizes
+     *
+     */
+public:
+    static int _cols;
+    static int _rows;
+    static int _padd;
+    static int _header;
+    static int maxAnnotations;
+    
+private:
+    Point _hover; // board index of hover location
+    pair<Point, Point> _match; //board indeces of current matching
+    
+    int _state;
+    vector<vector<int>> displayedIds;
+    vector<int> displayedMatches;
     
 public:
-    vector<Ptr<XMLAnnotateProcess>> process;
     
-    MatchingProcess(const vector<Ptr<XMLAnnotateProcess>> &p)
-            :process(p)
+    vector<Ptr<XMLAnnotateProcess>> process;
+    vector<pair<Point,Point>> matches;
+    
+public:
+    MatchingProcess(const vector<Ptr<XMLAnnotateProcess>> &p,
+                    const vector<pair<Point,Point>> &mchs)
+        : _hover(-1,-1),
+          _match(make_pair<Point, Point>(Point(-1,-1), Point(-1,-1))),
+          _state(EMPTY),
+         displayedIds(p.size()),
+         process(p),
+         matches(mchs)
     {}
     
     virtual ~MatchingProcess(){}
     
+    virtual Point boardIndexToPixelCoord(const Point &index)
+    {
+        return Point(index.x * (_cols + _padd),
+                     index.y * (_rows + _padd + _header));
+    }
     
-    virtual void printPreviews(size_t index,  Mat &img)
+    virtual int drawPreview(size_t row, size_t col,
+                                      const AnnotationPreview &preview,
+                                      Mat &img, int vShift = 0, bool showHover = true)
+    {
+        int startCols = col * (_cols + _padd);
+        int endCols   = startCols + _cols;
+        
+        int startRow  = vShift + row * (_rows + _padd + _header);
+        
+        int startText = startRow  + 2;
+        int startImag = startRow  + _header;
+        int endImag   = startImag + _rows;
+        
+        preview.preview.copyTo(img(Range(startImag, endImag),
+                                   Range(startCols, endCols)));
+        
+        Draw::drawRectangle(img, Rect(startCols, startRow,
+                                      _cols, _header),
+                            Color::yellow);
+        
+        Draw::drawText(img, "ID: "+to_string(preview.ID),
+                       Color::red, Point(startCols, startText), .3, 1);
+        
+        if (col == _hover.x && row == _hover.y && showHover)
+        {
+            Draw::drawRectangle(img, Rect(startCols, startRow,
+                                          _cols, _rows + _header),
+                                Color::red, 0);
+        }
+
+        return preview.ID;
+    }
+    virtual void displayRow(size_t index,  Mat &img)
     {
         int count = 0;
         
+        displayedIds[index].clear();
         
-        for (map<int, AnnotationPreview>::iterator it = process[index]->previews.begin();
-             it != process[index]->previews.end() && count < maxAnnotations;
-             it++, count++)
-            
-            
+        map<int, AnnotationPreview>::reverse_iterator rit;
+        for ( rit  = process[index]->previews.rbegin();
+              (rit != process[index]->previews.rend()) && (count < maxAnnotations);
+              ++rit)
         {
-            int startCols = count * (_cols + _padd);
-            int endCols   = startCols + _cols;
-            
-            int startRow  = index * (_rows + _padd + _header);
-            int endRow    = startRow + _rows;
-            
-            int startText = index * (_rows + _padd);
-            
-            
-            if (process[index]->currentFrameN >= it->second.fromFrameN)
+            if (rit->second.fromFrameN > process[index]->currentFrameN )
             {
-                it->second.preview.copyTo(img(Range(startRow, endRow),
-                                              Range(startCols, endCols)));
-                Draw::drawRectangle(img, Rect(startCols, startText, _cols, _header),
-                                    Color::yellow);
-                Draw::drawText(img, "ID: "+to_string(it->first),
-                               Color::red, Point(startCols, startText + 2), .3, 1);
+                continue;
+            }
+            else
+            {
+                int _id = drawPreview(index, count, rit->second, img);
+                displayedIds[index].push_back(_id);
+                count++;
             }
         }
-  
+
     }
-    
-    
+    virtual int getIDfromBoardIndex(const Point &index)
+    {
+        int _id = -1;
+        if (index.y >= 0 && index.y < displayedIds.size())
+        {
+            if (index.x >= 0 && index.x < displayedIds[index.y].size())
+            {
+                _id = displayedIds[index.y][index.x];
+            }
+        }
+        return _id;
+    }
     virtual void operator()(const size_t frameN, const Mat &frame, Mat &output)
     {
-        Mat tmp (process.size() * 100,
-                 maxAnnotations * (_cols + _padd), CV_8UC3, Scalar::all(255));
+        
+        int baseline = process.size() * (_rows + _padd + _header);
+        int height   = baseline + 2   * (_rows + _padd + _header) + _header;
+        
+        output = Mat(height,
+                     maxAnnotations * (_cols + _padd), CV_8UC3, Scalar::all(255));
         
         for (size_t i = 0; i < process.size(); i++)
         {
-            printPreviews(i, tmp);
+            displayRow(i, output);
         }
-        if (tmp.rows * tmp.cols > 0)
-            imshow("Annotation Preview", tmp);
-       
+        
+        
+        //draws link from first selection and _hover
+        if (_state >= FIRST)
+        {
+            line(output,
+                 boardIndexToPixelCoord(_match.first) + Point(_cols/2, _rows/2) ,
+                 boardIndexToPixelCoord(_hover)      + Point(_cols/2, _rows/2),
+                 Color::red, 1, CV_AA);
+        }
+        
+        
+        Draw::drawText(output, "Matches: ", Color::red, Point(10, baseline), .4, 1);
+        
+        int col = 0;
+        displayedMatches.clear();
+        for (size_t i = 0; i < matches.size() && col < maxAnnotations; i++)
+        {
+            int fpIdx = matches[i].first.x;
+            int fpID  = matches[i].first.y;
+            
+            int spIdx = matches[i].second.x;
+            int spID  = matches[i].second.y;
+            
+            auto fFound =  find(displayedIds[fpIdx].begin(), displayedIds[fpIdx].end(), fpID);
+            auto sFound =  find(displayedIds[spIdx].begin(), displayedIds[spIdx].end(), spID);
+            
+            if (fFound != displayedIds[fpIdx].end() &&
+                sFound != displayedIds[spIdx].end())
+            {
+            
+                AnnotationPreview &first  = process[fpIdx]->previews.at(fpID);
+                AnnotationPreview &second = process[spIdx]->previews.at(spID);
+            
+                drawPreview(process.size(), col, first, output, _header, false);
+                drawPreview(process.size()+1, col, second, output,_header, false);
+                displayedMatches.push_back(i);
+                col++;
+            }
+        }
     };
+    virtual Point getBoardIndexFromCoordinates(int x, int y)
+    {
+        return Point (x / (_cols + _padd),
+                      y / (_rows + _padd + _header));
+    }
     
     /**
      *Inherited from MouseListener. Check MouseListener class for details
@@ -537,11 +654,47 @@ public:
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
-    virtual void leftButtonDown(int x, int y, int flags){};
+    virtual void leftButtonDown(int x, int y, int flags)
+    {
+        _state = (++_state)%3;
+        if (_state == FIRST)
+        {
+            _match.first  = getBoardIndexFromCoordinates(x, y);
+            int firstID   = getIDfromBoardIndex(_match.first);
+            if (firstID == -1)
+                _state = 0;
+        }
+        if (_state == SECOND)
+        {
+            _match.second  = getBoardIndexFromCoordinates(x, y);
+            
+            int firstID = getIDfromBoardIndex(_match.first);
+            int seconID = getIDfromBoardIndex(_match.second);
+            
+            if (firstID != -1 && seconID != -1 && seconID != firstID)
+            {
+                matches.push_back(make_pair(Point(_match.first.y, firstID),
+                                            Point(_match.second.y, seconID)));
+                
+            }
+            _state = EMPTY;
+            _match.first  = Point(-1,-1);
+            _match.second = Point(-1,-1);
+            
+        }
+    };
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
-    virtual void rightButtonDown(int x, int y, int flags){};
+    virtual void rightButtonDown(int x, int y, int flags)
+    {
+        Point coord = getBoardIndexFromCoordinates(x, y);
+        
+        if (coord.y >= process.size() && coord.x < displayedMatches.size())
+        {
+            matches.erase(matches.begin() + displayedMatches[coord.x]);
+        }
+    };
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
@@ -549,7 +702,10 @@ public:
     /**
      *Inherited from MouseListener. Check MouseListener class for details
      */
-    virtual void mouseMove(int x, int y, int flags){};
+    virtual void mouseMove(int x, int y, int flags)
+    {
+        _hover = getBoardIndexFromCoordinates(x, y);
+    };
     
     /**
      * Inherited from KeyboardListerner. Check KeyboardListener class for details.

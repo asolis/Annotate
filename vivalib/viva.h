@@ -210,9 +210,8 @@ namespace viva {
         bool _showTimeInfo;
         bool _pause;
         
-        static void mouseCallback(int event, int x, int y, int flags, void *ptr);
-        
     public:
+        static void mouseCallback(int event, int x, int y, int flags, void *ptr);
         
         Processor():
         _input(new CameraInput(-1)),

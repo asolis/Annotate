@@ -217,6 +217,7 @@ int InputFactory::getMode(CommandLineParserExt &parser)
 
 void InputFactory::load(CommandLineParserExt &parser,
           vector<string> &actns,
+          vector<pair<Point,Point>> &matches,
           vector<Ptr<Input>> &inputs,
           vector<Ptr<XMLAnnotateProcess>> &processes)
 {
@@ -259,6 +260,10 @@ void InputFactory::load(CommandLineParserExt &parser,
         processes.push_back(process);
         
     }
+    
+    xml_node<> *matching = doc.first_node(NODE::MATCHING.c_str());
+    XMLAnnotateProcess::readMatching(*matching, matches);
+    
     AnnotateProcess::currentAnnotationID = maxID + 1;
 }
 
@@ -292,6 +297,7 @@ void InputFactory::initialize(CommandLineParserExt &parser,
         process->setActions(actions);
         processes.push_back(process);
     }
+    
     AnnotateProcess::currentAnnotationID = 0;
 }
 
@@ -301,6 +307,7 @@ void InputFactory::initialize(CommandLineParserExt &parser,
 
 void InputFactory::write(const string &filename,
            vector<string> &actions,
+           vector<pair<Point,Point>> &matches,
            vector<Ptr<XMLAnnotateProcess>> &processes)
 {
     xml_document<> doc;
@@ -312,6 +319,7 @@ void InputFactory::write(const string &filename,
     {
         processes[i]->writeSequence(doc);
     }
+    XMLAnnotateProcess::writeMatching(doc, matches);
     ofstream file;
     file.open(filename);
     file << doc;
@@ -726,6 +734,7 @@ void AnnotateProcess::keyboardInput(int key)
                 {
                     int id =  annotations[currentFrameN].back().ID;
                     annotations[currentFrameN].pop_back();
+                    
                     if (!annotationExists(id, currentFrameN - 1))
                         previews.erase(id);
                 }
@@ -755,7 +764,9 @@ void AnnotateProcess::keyboardInput(int key)
         {
             int id = annotations[currentFrameN].back().ID;
             annotations[currentFrameN].pop_back();
-            previews.erase(id);
+            
+            if (!annotationExists(id, currentFrameN - 1))
+                previews.erase(id);
             
         }
     }
@@ -868,7 +879,8 @@ void AnnotateProcess::createPreview(const Annotation &ann, const Mat &image, siz
         AnnotationPreview preview;
         preview.ID = ann.ID;
         preview.fromFrameN = frameNumber;
-        resize(image(boundingRect(ann.area)), preview.preview, Size(64,80));
+        Size _size(MatchingProcess::_cols, MatchingProcess::_rows);
+        resize(image(boundingRect(ann.area)), preview.preview, _size);
         previews.insert(pair<int,AnnotationPreview>(preview.ID, preview));
     }
 }
@@ -1007,6 +1019,10 @@ string ATTR::TARGET1  = "target1";
 string ATTR::TARGET2  = "target2";
 string ATTR::WIDTH    = "width";
 string ATTR::HEIGHT   = "height";
+string ATTR::FROM_SEQ = "fromSeq";
+string ATTR::TO_SEQ   = "toSeq";
+string ATTR::TO_ID    = "toID";
+string ATTR::FROM_ID  = "fromID";
 
 string ATTR::T_FOLDER = "folder";
 string ATTR::T_FILE   = "file";
@@ -1040,6 +1056,23 @@ void XMLAnnotateProcess::writeActions(xml_document<> &doc, const vector<string> 
     }
     doc.append_node(actions);
 }
+
+void XMLAnnotateProcess::writeMatching(xml_document<> &doc, const vector<pair<Point,Point>> &matchs)
+{
+    xml_node<>* matching = node(doc, NODE::MATCHING);
+    for (size_t i = 0; i < matchs.size(); i++)
+    {
+        xml_node<> *match = node(doc, NODE::MATCH);
+        match->append_attribute(attribute(doc, ATTR::FROM_SEQ, to_string(matchs[i].first.x)));
+        match->append_attribute(attribute(doc, ATTR::FROM_ID, to_string(matchs[i].first.y)));
+        
+        match->append_attribute(attribute(doc, ATTR::TO_SEQ, to_string(matchs[i].second.x)));
+        match->append_attribute(attribute(doc, ATTR::TO_ID, to_string(matchs[i].second.y)));
+        matching->append_node(match);
+    }
+    doc.append_node(matching);
+}
+
 void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
 {
     vector<string> filenames;
@@ -1219,6 +1252,22 @@ void XMLAnnotateProcess::readActions(xml_node<> &actions, vector<string> &actns)
         actns.push_back(action->value());
     }
 }
+
+void XMLAnnotateProcess::readMatching(xml_node<> &matching, vector<pair<Point, Point> > &matchs)
+{
+    matchs.clear();
+    for (xml_node<> *match = matching.first_node(NODE::MATCH.c_str());
+         match;
+         match = match->next_sibling())
+    {
+        Point p1(readAttribute<int>(*match, ATTR::FROM_SEQ),
+                 readAttribute<int>(*match, ATTR::FROM_ID));
+        Point p2(readAttribute<int>(*match, ATTR::TO_SEQ),
+                 readAttribute<int>(*match, ATTR::TO_ID));
+        matchs.push_back(make_pair(p1,p2));
+    }
+}
+
 void XMLAnnotateProcess::readXML(const string &filename, xml_document<> &doc)
 {
     ifstream file(filename);
@@ -1264,3 +1313,9 @@ size_t XMLAnnotateProcess::read(const string &filename)
     
     return maxID;
 }
+
+int MatchingProcess::_cols = 64;
+int MatchingProcess::_rows = 80;
+int MatchingProcess::_padd = 2;
+int MatchingProcess::_header = 12;
+int MatchingProcess::maxAnnotations = 15;

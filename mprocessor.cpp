@@ -84,6 +84,10 @@ void MultipleProcess::run()
         }
 
     }
+    if (matching)
+        namedWindow(_matchinName, FLAGS);
+    
+    
     vector<Ptr<ProcessListenerWrapper>> wrappers;
     if (_mListener && _process.size())
     {
@@ -94,7 +98,9 @@ void MultipleProcess::run()
             cv::setMouseCallback(_windowName + to_string(i), MultipleProcess::mouseCallback, wrappers[i]);
         }
     }
-
+    if (_mListener && matching)
+        cv::setMouseCallback(_matchinName, Processor::mouseCallback, matching);
+        
     if (!_input.size() && !_process.size())
         return;
 
@@ -174,8 +180,9 @@ void MultipleProcess::run()
             }
             if (matching)
             {
-                Mat tmp,tmp2;
-                matching->operator()(0, tmp, tmp2);
+                Mat tmp, moutput;
+                matching->operator()(0, tmp, moutput);
+                cv::imshow(_matchinName, moutput);
             }
             key = Keys::NONE;
 

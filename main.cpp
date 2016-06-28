@@ -68,15 +68,17 @@ int main(int argc, const char * argv[])
     size_t _startFrame  = parser.get<int>("s");
 
     vector<string> actions;
+    vector<pair<Point,Point>> matches;
 
     if (parser.has("i"))
-        InputFactory::load(parser, actions, _inputs, _process);
+        InputFactory::load(parser, actions, matches, _inputs, _process);
     else
         InputFactory::initialize(parser, actions, _inputs,  _process);
 
     vector<Ptr<ProcessFrame>> proc (_process.begin(), _process.end());
     
-    Ptr<ProcessFrame> matching = new MatchingProcess(_process);
+    Ptr<MatchingProcess> _mp   = new MatchingProcess(_process, matches);
+    Ptr<ProcessFrame> matching = _mp;
     
 	MultipleProcess processor;
     processor.setInput(_inputs);
@@ -88,7 +90,7 @@ int main(int argc, const char * argv[])
     processor.run();
 
     if (parser.has("o"))
-        InputFactory::write(parser.get<string>("o"), actions, _process);
+        InputFactory::write(parser.get<string>("o"), actions, _mp->matches, _process);
 
 
     return 0;
