@@ -1201,6 +1201,69 @@ void XMLAnnotateProcess::readSequenceFilenames(xml_node<> &sequence,
         filenames.push_back(readAttribute<string>(*frame, ATTR::FILENAME));
     }
 }
+
+
+size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &sequence,
+                                                  const string &seqFolder,
+                                                  vector<vector<Annotation>> &ann,
+                                                  map<int, AnnotationPreview> &previews)
+{
+    size_t maxID = 0, frameCount, sequenceID;
+    int w,h;
+    string type;
+    
+    readSequenceMetadata(sequence, sequenceID, frameCount, type, w, h);
+    ann.resize(frameCount);
+    
+    
+    bool sep = (seqFolder.substr(seqFolder.size()-1) == viva::Files::PATH_SEPARATOR);
+    
+    for (xml_node<> *frame = sequence.first_node(NODE::FRAME.c_str());
+         frame;
+         frame = frame->next_sibling())
+    {
+        size_t fN = readAttribute<size_t>(*frame, ATTR::ID);
+        
+        string filename = readAttribute<string>(*frame, ATTR::FILENAME);
+        stringstream ss;
+        ss << sequence << ((sep) ? "": viva::Files::PATH_SEPARATOR) << filename;
+        
+        Mat frameImg = imread(ss.str());
+        
+        for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
+            target;
+            target = target->next_sibling())
+        {
+            size_t tID        = readAttribute<size_t>(*target, ATTR::ID);
+            string tAction    = readAttribute<string>(*target, ATTR::ACTION);
+            xml_node<char> *loc = target->first_node(NODE::LOCATION.c_str());
+            
+            maxID = (tID > maxID)? tID : maxID;
+            
+            if (loc)
+            {
+                string location(loc->value());
+                Annotation a;
+                a.tracking = false;
+                a.ID = tID;
+                a.action = tAction;
+                parseLocation(location, a.area);
+                ann[fN].push_back(a);
+                
+                
+                //create previews by
+                AnnotationPreview preview;
+                preview.ID = tID;
+                preview.fromFrameN = fN;
+                Rect roi = boundingRect(a.area);
+                frameImg(roi).copyTo(preview.preview);
+                previews.insert(std::make_pair(tID,preview));
+            }
+        }
+    }
+    return maxID;
+}
+
 size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
                                     vector<vector<Annotation>> &ann)
 {
@@ -1217,6 +1280,8 @@ size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
          frame = frame->next_sibling())
     {
         size_t fN = readAttribute<size_t>(*frame, ATTR::ID);
+        
+                    //readAttribute<string>(*frame, ATTR::FILENAME);
 
         for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
             target;
@@ -1237,6 +1302,12 @@ size_t XMLAnnotateProcess::readSequenceAnnotations(xml_node<> &sequence,
                 a.action = tAction;
                 parseLocation(location, a.area);
                 ann[fN].push_back(a);
+                
+                
+                //create previews by 
+                
+                
+                
             }
         }
     }
@@ -1305,10 +1376,12 @@ size_t XMLAnnotateProcess::read(const string &filename)
     
     readSequenceMetadata(*sequence, ID, frameCount, TYPE, width, height);
     
-    vector<vector<Annotation>> ann;
-    size_t maxID = readSequenceAnnotations(*sequence, ann);
+   
     
-    setAnnotations(ann);
+    size_t maxID = readSequenceAnnotationsWithPreviews(*sequence, filename,
+                                                       annotations, previews);
+    
+    totalNumberOfFrames = annotations.size();
     
     
     return maxID;

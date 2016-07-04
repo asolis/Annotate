@@ -461,6 +461,10 @@ public:
                                       vector<string> &filenames);
     static size_t readSequenceAnnotations(xml_node<> &sequence,
                                         vector<vector<Annotation>> &ann);
+    static size_t readSequenceAnnotationsWithPreviews(xml_node<> &sequence,
+                                          const string &seqFolder,
+                                          vector<vector<Annotation>> &ann,
+                                          map<int, AnnotationPreview> &previews );
     static void readXML(const string &filename, xml_document<> &doc);
     
 };
