@@ -225,13 +225,16 @@ void InputFactory::load(CommandLineParserExt &parser,
     vector<char> buffer;
     XMLAnnotateProcess::readXML(parser.get<string>("i"), doc, buffer);
     
-    xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
+    xml_node<> *root = doc.first_node(NODE::ANNOTATE.c_str());
+    
+    
+    xml_node<>* aNode  = root->first_node(NODE::ACTIONS.c_str());
     XMLAnnotateProcess::readActions(*aNode, actns);
     
-    xml_node<> *matching = doc.first_node(NODE::MATCHING.c_str());
+    xml_node<> *matching = root->first_node(NODE::MATCHING.c_str());
     XMLAnnotateProcess::readMatching(*matching, matches);
     
-    xml_node<> *sequence = doc.first_node(NODE::SEQ.c_str());
+    xml_node<> *sequence = root->first_node(NODE::SEQ.c_str());
     
     size_t maxID = 0;
     for (size_t i = 0 ;
@@ -1029,6 +1032,7 @@ string ATTR::FROM_ID  = "fromID";
 string ATTR::T_FOLDER = "folder";
 string ATTR::T_FILE   = "file";
 
+string NODE::ANNOTATE = "annotate";
 string NODE::SEQ      = "sequence";
 string NODE::ACTIONS  = "actions";
 string NODE::ACTION   = "action";
@@ -1376,12 +1380,13 @@ size_t XMLAnnotateProcess::read(const string &filename, const string &folder)
 
     
     vector<string> actns;
-    xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
+    xml_node<>* root   = doc.first_node(NODE::ANNOTATE.c_str());
+    xml_node<>* aNode  = root->first_node(NODE::ACTIONS.c_str());
     readActions(*aNode, actns);
     
     setActions(actns);
     
-    xml_node<>* sequence = doc.first_node(NODE::SEQ.c_str());
+    xml_node<>* sequence = root->first_node(NODE::SEQ.c_str());
     for (size_t i = 0; i < ID; i++)
         sequence = sequence->next_sibling();
     

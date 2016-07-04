@@ -355,6 +355,7 @@ struct ATTR
 
 struct NODE
 {
+    static string ANNOTATE;
     static string SEQ;
     static string ACTIONS;
     static string ACTION;

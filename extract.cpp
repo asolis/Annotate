@@ -62,10 +62,11 @@ int main(int argc, const char * argv[])
     vector<char> buffer;
     XMLAnnotateProcess::readXML(parser.get<string>("i"), doc, buffer);
     vector<string> actns;
-    xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
+    xml_node<>* root   = doc.first_node(NODE::ANNOTATE.c_str());
+    xml_node<>* aNode  = root->first_node(NODE::ACTIONS.c_str());
     XMLAnnotateProcess::readActions(*aNode, actns);
     
-    xml_node<> *sequence = doc.first_node(NODE::SEQ.c_str());
+    xml_node<> *sequence = root->first_node(NODE::SEQ.c_str());
     for (size_t skeep = 0; skeep < parser.get<int>("id"); skeep++)
         sequence = sequence->next_sibling();
     
