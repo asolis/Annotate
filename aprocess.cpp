@@ -222,12 +222,14 @@ void InputFactory::load(CommandLineParserExt &parser,
           vector<Ptr<XMLAnnotateProcess>> &processes)
 {
     xml_document<> doc;
-    XMLAnnotateProcess::readXML(parser.get<string>("i"), doc);
+    vector<char> buffer;
+    XMLAnnotateProcess::readXML(parser.get<string>("i"), doc, buffer);
     
     xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
     XMLAnnotateProcess::readActions(*aNode, actns);
     
-    
+    xml_node<> *matching = doc.first_node(NODE::MATCHING.c_str());
+    XMLAnnotateProcess::readMatching(*matching, matches);
     
     xml_node<> *sequence = doc.first_node(NODE::SEQ.c_str());
     
@@ -241,6 +243,7 @@ void InputFactory::load(CommandLineParserExt &parser,
         string type;
         size_t sID, cFC;
         
+        cout << "Reading sequence " << i << endl; 
         
         XMLAnnotateProcess::readSequenceMetadata(*sequence, sID, cFC, type, width, height);
         XMLAnnotateProcess::readSequenceFilenames(*sequence, filenames);
@@ -252,7 +255,7 @@ void InputFactory::load(CommandLineParserExt &parser,
                                                                  width,
                                                                  height,
                                                                  i);
-        size_t mID = process->read(parser.get<string>("i"));
+        size_t mID = process->read(parser.get<string>("i"), parser.get<string>(i));
         
         
         maxID = (mID > maxID)? mID : maxID;
@@ -261,8 +264,7 @@ void InputFactory::load(CommandLineParserExt &parser,
         
     }
     
-    xml_node<> *matching = doc.first_node(NODE::MATCHING.c_str());
-    XMLAnnotateProcess::readMatching(*matching, matches);
+   
     
     AnnotateProcess::currentAnnotationID = maxID + 1;
 }
@@ -1216,6 +1218,7 @@ size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &seque
     ann.resize(frameCount);
     
     
+    
     bool sep = (seqFolder.substr(seqFolder.size()-1) == viva::Files::PATH_SEPARATOR);
     
     for (xml_node<> *frame = sequence.first_node(NODE::FRAME.c_str());
@@ -1224,11 +1227,15 @@ size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &seque
     {
         size_t fN = readAttribute<size_t>(*frame, ATTR::ID);
         
+        
+        
         string filename = readAttribute<string>(*frame, ATTR::FILENAME);
         stringstream ss;
-        ss << sequence << ((sep) ? "": viva::Files::PATH_SEPARATOR) << filename;
+        ss << seqFolder << ((sep) ? "": viva::Files::PATH_SEPARATOR) << filename;
+       
         
         Mat frameImg = imread(ss.str());
+        
         
         for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
             target;
@@ -1255,8 +1262,12 @@ size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &seque
                 AnnotationPreview preview;
                 preview.ID = tID;
                 preview.fromFrameN = fN;
-                Rect roi = boundingRect(a.area);
-                frameImg(roi).copyTo(preview.preview);
+                
+                
+                Size _size(MatchingProcess::_cols, MatchingProcess::_rows);
+                resize(frameImg(boundingRect(a.area)), preview.preview, _size);
+                
+                
                 previews.insert(std::make_pair(tID,preview));
             }
         }
@@ -1339,13 +1350,15 @@ void XMLAnnotateProcess::readMatching(xml_node<> &matching, vector<pair<Point, P
     }
 }
 
-void XMLAnnotateProcess::readXML(const string &filename, xml_document<> &doc)
+void XMLAnnotateProcess::readXML(const string &filename, xml_document<> &doc, vector<char> &buffer)
 {
     ifstream file(filename);
-    vector<char> buffer((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    buffer = vector<char>((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
     buffer.push_back('\0');
     doc.parse<0>(&buffer[0]);
+    
     file.close();
+    
 }
 
 size_t XMLAnnotateProcess::read(xml_document<> &doc)
@@ -1355,10 +1368,11 @@ size_t XMLAnnotateProcess::read(xml_document<> &doc)
     return 0;
 }
 
-size_t XMLAnnotateProcess::read(const string &filename)
+size_t XMLAnnotateProcess::read(const string &filename, const string &folder)
 {
     xml_document<> doc;
-    readXML(filename, doc);
+    vector<char> buffer;
+    readXML(filename, doc, buffer);
 
     
     vector<string> actns;
@@ -1378,9 +1392,10 @@ size_t XMLAnnotateProcess::read(const string &filename)
     
    
     
-    size_t maxID = readSequenceAnnotationsWithPreviews(*sequence, filename,
+    size_t maxID = readSequenceAnnotationsWithPreviews(*sequence, folder,
                                                        annotations, previews);
     
+    cout << "Annotations: " << annotations.size() << " Previews: " << previews.size() << endl;
     totalNumberOfFrames = annotations.size();
     
     

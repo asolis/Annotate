@@ -59,7 +59,8 @@ int main(int argc, const char * argv[])
     }
     
     xml_document<> doc;
-    XMLAnnotateProcess::readXML(parser.get<string>("i"), doc);
+    vector<char> buffer;
+    XMLAnnotateProcess::readXML(parser.get<string>("i"), doc, buffer);
     vector<string> actns;
     xml_node<>* aNode  = doc.first_node(NODE::ACTIONS.c_str());
     XMLAnnotateProcess::readActions(*aNode, actns);

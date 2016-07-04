@@ -448,7 +448,7 @@ public:
     void writeSequence(xml_document<> &doc);
     void write(const string &filename);
 
-    size_t read(const string &filename);
+    size_t read(const string &filename, const string &sequence);
     size_t read(xml_document<> &doc);
 
     static void readSequenceMetadata(xml_node<> &sequence,
@@ -465,7 +465,7 @@ public:
                                           const string &seqFolder,
                                           vector<vector<Annotation>> &ann,
                                           map<int, AnnotationPreview> &previews );
-    static void readXML(const string &filename, xml_document<> &doc);
+    static void readXML(const string &filename, xml_document<> &doc, vector<char> &buffer);
     
 };
 
