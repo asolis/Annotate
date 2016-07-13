@@ -1262,7 +1262,9 @@ size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &seque
                 
                 Mat frameImg = imread(ss.str());
                 Size _size(MatchingProcess::_cols, MatchingProcess::_rows);
-                resize(frameImg(boundingRect(a.area)), preview.preview, _size);
+				Rect roi_ = boundingRect(a.area) & Rect(0,0, frameImg.cols, frameImg.rows);
+				if (roi_.area() > 0)
+					resize(frameImg(roi_), preview.preview, _size);
                 
                 
                 previews.insert(std::make_pair(tID,preview));
