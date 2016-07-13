@@ -368,6 +368,7 @@ struct NODE
 
 class XMLAnnotateProcess: public AnnotateProcess
 {
+public:
     /*
      * Convert string to the right encoding
      */
@@ -444,10 +445,9 @@ public:
     static  void readActions(xml_node<> &actions, vector<string> &actns);
     static  void readMatching(xml_node<> &matching, vector<pair<Point,Point>> &matchs);
     static  void writeHeader(xml_document<> &doc);
-    static  void writeActions(xml_document<> &doc, const vector<string> &actions);
-    static  void writeMatching(xml_document<> &doc, const vector<pair<Point,Point>> &matchs);
-    void writeSequence(xml_document<> &doc);
-    void write(const string &filename);
+    static  void writeActions(xml_document<> &doc, xml_node<> &annotate, const vector<string> &actions);
+    static  void writeMatching(xml_document<> &doc, xml_node<> &annotate, const vector<pair<Point,Point>> &matchs);
+    void writeSequence(xml_document<> &doc, xml_node<> &annotate);
 
     size_t read(const string &filename, const string &sequence);
     size_t read(xml_document<> &doc);

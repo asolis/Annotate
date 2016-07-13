@@ -288,7 +288,6 @@ void InputFactory::initialize(CommandLineParserExt &parser,
                                                 Size(parser.get<int>("W"), parser.get<int>("H")));
         
         inputs.push_back(input);
-		std::string a = parser.get<string>(i);
         Ptr<XMLAnnotateProcess> process  = new XMLAnnotateProcess(parser.get<string>(i),
                                                                   input->getWidth(),
                                                                   input->getHeight(),
@@ -316,15 +315,20 @@ void InputFactory::write(const string &filename,
            vector<Ptr<XMLAnnotateProcess>> &processes)
 {
     xml_document<> doc;
-    
+
+    xml_node<> *annotate = XMLAnnotateProcess::node(doc, NODE::ANNOTATE);
+
     XMLAnnotateProcess::writeHeader(doc);
-    XMLAnnotateProcess::writeActions(doc, actions);
+
+    doc.append_node(annotate);
+
+    XMLAnnotateProcess::writeActions(doc, *annotate,  actions);
     
     for (size_t i = 0; i < processes.size(); i++)
     {
-        processes[i]->writeSequence(doc);
+        processes[i]->writeSequence(doc, *annotate);
     }
-    XMLAnnotateProcess::writeMatching(doc, matches);
+    XMLAnnotateProcess::writeMatching(doc, *annotate,  matches);
     ofstream file;
     file.open(filename);
     file << doc;
@@ -1051,7 +1055,7 @@ void XMLAnnotateProcess::writeHeader(xml_document<> &doc)
     decl->append_attribute(attribute(doc, ATTR::ENCODING, "utf-8"));
     doc.append_node(decl);
 }
-void XMLAnnotateProcess::writeActions(xml_document<> &doc, const vector<string> &acts)
+void XMLAnnotateProcess::writeActions(xml_document<> &doc, xml_node<> &annotate, const vector<string> &acts)
 {
     xml_node<>* actions = node(doc, NODE::ACTIONS);
     for (size_t i = 0; i < acts.size(); i++)
@@ -1060,10 +1064,10 @@ void XMLAnnotateProcess::writeActions(xml_document<> &doc, const vector<string> 
         action->value(toChar(doc, acts[i]));
         actions->append_node(action);
     }
-    doc.append_node(actions);
+    annotate.append_node(actions);
 }
 
-void XMLAnnotateProcess::writeMatching(xml_document<> &doc, const vector<pair<Point,Point>> &matchs)
+void XMLAnnotateProcess::writeMatching(xml_document<> &doc, xml_node<> &annotate, const vector<pair<Point,Point>> &matchs)
 {
     xml_node<>* matching = node(doc, NODE::MATCHING);
     for (size_t i = 0; i < matchs.size(); i++)
@@ -1076,10 +1080,10 @@ void XMLAnnotateProcess::writeMatching(xml_document<> &doc, const vector<pair<Po
         match->append_attribute(attribute(doc, ATTR::TO_ID, to_string(matchs[i].second.y)));
         matching->append_node(match);
     }
-    doc.append_node(matching);
+    annotate.append_node(matching);
 }
 
-void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
+void XMLAnnotateProcess::writeSequence(xml_document<> &doc, xml_node<> &annotate)
 {
     vector<string> filenames;
     bool folder = InputFactory::isFolderSequence(input);
@@ -1095,7 +1099,8 @@ void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
     sequence->append_attribute(attribute(doc, ATTR::ID, toChar(doc, to_string(ID))));
     sequence->append_attribute(attribute(doc, ATTR::WIDTH, toChar(doc, to_string(width))));
     sequence->append_attribute(attribute(doc, ATTR::HEIGHT, toChar(doc, to_string(height))));
-    doc.append_node(sequence);
+    //doc.append_node
+    annotate.append_node(sequence);
     
     if (folder)
         sequence->append_attribute(attribute(doc, ATTR::TYPE, ATTR::T_FOLDER));
@@ -1137,19 +1142,7 @@ void XMLAnnotateProcess::writeSequence(xml_document<> &doc)
         sequence->append_node(frame);
     }
 }
-void XMLAnnotateProcess::write(const string &filename)
-{
-    xml_document<> doc;
-    // add declaration
-    writeHeader(doc);
-    writeActions(doc, actions);
-    writeSequence(doc);
-    ofstream file;
-    file.open(filename);
-    // print out the xml document
-    file << doc;
-    file.close();
-}
+
 /*
  * Convert string to the right encoding
  */
@@ -1238,7 +1231,7 @@ size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &seque
         ss << seqFolder << ((sep) ? "": viva::Files::PATH_SEPARATOR) << filename;
        
         
-        Mat frameImg = imread(ss.str());
+
         
         
         for(xml_node<> *target = frame->first_node(NODE::TARGET.c_str());
@@ -1267,7 +1260,7 @@ size_t XMLAnnotateProcess::readSequenceAnnotationsWithPreviews(xml_node<> &seque
                 preview.ID = tID;
                 preview.fromFrameN = fN;
                 
-                
+                Mat frameImg = imread(ss.str());
                 Size _size(MatchingProcess::_cols, MatchingProcess::_rows);
                 resize(frameImg(boundingRect(a.area)), preview.preview, _size);
                 
