@@ -631,10 +631,10 @@ void AnnotateProcess::helpHUD(Mat &image)
 }
 void AnnotateProcess::leftButtonDown(int x, int y, int flags)
 {
-    if  (flags &  EVENT_FLAG_CTRLKEY  ||
-         flags &  EVENT_FLAG_SHIFTKEY)
-    {
 
+    if ((flags &  EVENT_FLAG_CTRLKEY ) ||
+       (flags &  EVENT_FLAG_SHIFTKEY))
+    {
         selection = findAnnotationIndexContaining(Point2f(x,y));
         if (selection >= 0)
         {
@@ -642,8 +642,8 @@ void AnnotateProcess::leftButtonDown(int x, int y, int flags)
             draw.area.clear();
             swapPolygon(selection);
         }
-
     }
+
     else
     {
         if (draw.mode == AXIS_RECT && draw.area.size() == 1)
@@ -693,8 +693,7 @@ void AnnotateProcess::leftButtonDown(int x, int y, int flags)
 };
 void AnnotateProcess::mouseMove(int x, int y, int flags)
 {
-    if  ( (flags &  EVENT_FLAG_CTRLKEY ||
-           flags &  EVENT_FLAG_SHIFTKEY)  &&
+    if  ( (flags &  EVENT_FLAG_SHIFTKEY)  &&
          Geometry::ptInsidePolygon(Point2f(x,y), draw.area))
     {
         Point2f vector =  Point2f(x,y) - mouseShift;

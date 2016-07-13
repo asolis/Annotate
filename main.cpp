@@ -75,12 +75,18 @@ int main(int argc, const char * argv[])
     else
         InputFactory::initialize(parser, actions, _inputs,  _process);
 
+
+
+
     vector<Ptr<ProcessFrame>> proc (_process.begin(), _process.end());
     
     Ptr<MatchingProcess> _mp   = new MatchingProcess(_process, matches);
     Ptr<ProcessFrame> matching = _mp;
     
 	MultipleProcess processor;
+    if (parser.has("s"))
+        processor.setStartFrame(parser.get<int>("s"));
+
     processor.setInput(_inputs);
 	processor.setStartFrame(_startFrame);
 	processor.setProcess(proc);

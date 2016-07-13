@@ -97,6 +97,7 @@ public:
     static bool filenames(const string &folder, vector<string> &filenames);
     static Ptr<Input> create(const string &sequence, const Size sz = Size(-1, -1));
     static Ptr<Input> create(const string &sequence, vector<string> &filenames, const Size sz = Size(-1, -1));
+
     
     static int getMode(CommandLineParserExt &parser);
     

@@ -145,9 +145,12 @@ void MultipleProcess::run()
         {
             for( size_t i = 0; i < _input.size(); i++)
             {
-                hasFrame[i] = _input[i]->getFrame(frame[i], -1);
-                freezedFrames[i] = frame[i];
-				frameN[i]--;
+                if (frameN[i] > 0)
+                {
+                    hasFrame[i] = _input[i]->getFrame(frame[i], -1);
+                    freezedFrames[i] = frame[i];
+                    frameN[i]--;
+                }
             }
         }
         else
