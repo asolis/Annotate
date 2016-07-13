@@ -288,7 +288,7 @@ void InputFactory::initialize(CommandLineParserExt &parser,
                                                 Size(parser.get<int>("W"), parser.get<int>("H")));
         
         inputs.push_back(input);
-        
+		std::string a = parser.get<string>(i);
         Ptr<XMLAnnotateProcess> process  = new XMLAnnotateProcess(parser.get<string>(i),
                                                                   input->getWidth(),
                                                                   input->getHeight(),

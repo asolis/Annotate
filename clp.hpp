@@ -42,7 +42,7 @@
 #include <sstream>
 #include <string>
 
-using namespace cv;
+
 using namespace std;
 /**
  **  Class to extend the functionality of OpenCV CommandLineParser
@@ -52,7 +52,7 @@ using namespace std;
  **/
 class CommandLineParserExt
 {
-    CommandLineParser _clp;
+    cv::CommandLineParser _clp;
     vector<std::string> pos_args;
     /**
      ** Trimming a string
@@ -79,10 +79,13 @@ public:
     }
 
     bool check() const { return _clp.check(); }
-    bool has(const std::string& name) const { return _clp.has(name); }
+    bool has(const std::string& name) const 
+	{
+		return _clp.has(name);
+	}
 
     template<typename T>
-    T get(const String& name, bool space_delete = true) const
+    T get(const cv::String& name, bool space_delete = true) const
     {
         return _clp.get<T>(name, space_delete);
     }
