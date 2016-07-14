@@ -399,8 +399,8 @@ void AnnotateProcess::operator()(const size_t frameN, const Mat &frame, Mat &out
                 Annotation newAnnotation;
                 newAnnotation.ID = previous.ID;
                 newAnnotation.tracking = true;
-                newAnnotation.mode   = draw.mode;
-                newAnnotation.action = draw.action;
+                newAnnotation.mode   = previous.mode;
+                newAnnotation.action = previous.action;
                 newAnnotation.area   = previous.area;
                 
                 Rect area = boundingRect(previous.area);
